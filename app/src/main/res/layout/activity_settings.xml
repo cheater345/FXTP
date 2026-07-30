@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="16dp"
+    android:background="@color/cyber_bg">
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="⚙️ Settings"
+        android:textSize="24sp"
+        android:textStyle="bold"
+        android:textColor="@color/cyber_neon_cyan"
+        android:fontFamily="monospace"
+        android:layout_marginBottom="16dp"/>
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Parent PIN"
+        android:textColor="@color/cyber_text_dim"
+        android:fontFamily="monospace"
+        android:layout_marginTop="8dp"/>
+
+    <EditText
+        android:id="@+id/pinInput"
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:inputType="numberPassword"
+        android:hint="Enter 4-digit PIN"
+        android:textColor="@color/cyber_text"
+        android:textColorHint="@color/cyber_text_dim"
+        android:background="@color/cyber_card"
+        android:padding="12dp"
+        android:fontFamily="monospace" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Server IP"
+        android:textColor="@color/cyber_text_dim"
+        android:fontFamily="monospace"
+        android:layout_marginTop="16dp"/>
+
+    <EditText
+        android:id="@+id/serverInput"
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:inputType="text"
+        android:hint="Enter server IP"
+        android:textColor="@color/cyber_text"
+        android:textColorHint="@color/cyber_text_dim"
+        android:background="@color/cyber_card"
+        android:padding="12dp"
+        android:fontFamily="monospace" />
+
+    <Button
+        android:id="@+id/saveBtn"
+        style="@style/CyberpunkButton"
+        android:text="💾 Save"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:layout_marginTop="16dp" />
+
+    <Button
+        android:id="@+id/backBtn"
+        style="@style/CyberpunkButton"
+        android:text="🔙 Back"
+        android:backgroundTint="#2a2a3e"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:layout_marginTop="8dp" />
+
+</LinearLayout>

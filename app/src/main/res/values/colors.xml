@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="cyber_bg">#0a0a12</color>
+    <color name="cyber_dark">#12121e</color>
+    <color name="cyber_card">#1a1a2e</color>
+    <color name="cyber_neon_cyan">#00f0ff</color>
+    <color name="cyber_neon_magenta">#ff00ff</color>
+    <color name="cyber_neon_purple">#a855f7</color>
+    <color name="cyber_neon_green">#00ff41</color>
+    <color name="cyber_text">#e0e0ff</color>
+    <color name="cyber_text_dim">#8888aa</color>
+    <color name="cyber_border">#2a2a4a</color>
+    <color name="cyber_accent">#7c5cfc</color>
+</resources>

@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="16dp"
+    android:background="@color/cyber_bg">
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="🎮 Control Panel"
+        android:textSize="24sp"
+        android:textStyle="bold"
+        android:textColor="@color/cyber_neon_cyan"
+        android:fontFamily="monospace"
+        android:layout_marginBottom="16dp"/>
+
+    <TextView
+        android:id="@+id/statusText"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="🔴 Disconnected"
+        android:textColor="@color/cyber_text_dim"
+        android:fontFamily="monospace"
+        android:layout_marginBottom="16dp"/>
+
+    <GridLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:columnCount="2"
+        android:rowCount="5"
+        android:columnOrderPreserved="false"
+        android:layout_marginBottom="16dp">
+
+        <Button
+            android:id="@+id/btnConnect"
+            style="@style/CyberpunkButton"
+            android:text="🔗 Connect"
+            android:layout_columnSpan="2"
+            android:layout_width="0dp"
+            android:layout_height="48dp" />
+
+        <Button
+            android:id="@+id/btnScreenshot"
+            style="@style/CyberpunkButton"
+            android:text="📸 Screenshot"
+            android:layout_width="0dp"
+            android:layout_height="48dp"
+            android:layout_columnWeight="1" />
+
+        <Button
+            android:id="@+id/btnMirror"
+            style="@style/CyberpunkButton"
+            android:text="🖥️ Mirror"
+            android:layout_width="0dp"
+            android:layout_height="48dp"
+            android:layout_columnWeight="1" />
+
+        <Button
+            android:id="@+id/btnStopMirror"
+            style="@style/CyberpunkButton"
+            android:text="⏹️ Stop Mirror"
+            android:backgroundTint="#555"
+            android:layout_width="0dp"
+            android:layout_height="48dp"
+            android:layout_columnWeight="1" />
+
+        <Button
+            android:id="@+id/btnNotify"
+            style="@style/CyberpunkButton"
+            android:text="🔔 Notify"
+            android:layout_width="0dp"
+            android:layout_height="48dp"
+            android:layout_columnWeight="1" />
+
+        <Button
+            android:id="@+id/btnClipboard"
+            style="@style/CyberpunkButton"
+            android:text="📋 Clipboard"
+            android:layout_width="0dp"
+            android:layout_height="48dp"
+            android:layout_columnWeight="1" />
+
+        <Button
+            android:id="@+id/btnShell"
+            style="@style/CyberpunkButton"
+            android:text="💻 Shell"
+            android:layout_width="0dp"
+            android:layout_height="48dp"
+            android:layout_columnWeight="1" />
+
+        <Button
+            android:id="@+id/btnLaunch"
+            style="@style/CyberpunkButton"
+            android:text="🚀 Launch App"
+            android:layout_width="0dp"
+            android:layout_height="48dp"
+            android:layout_columnWeight="1" />
+
+        <Button
+            android:id="@+id/btnLock"
+            style="@style/CyberpunkButton"
+            android:text="🔒 Lock"
+            android:backgroundTint="@color/cyber_neon_magenta"
+            android:layout_width="0dp"
+            android:layout_height="48dp"
+            android:layout_columnWeight="1" />
+
+        <Button
+            android:id="@+id/btnHtml"
+            style="@style/CyberpunkButton"
+            android:text="📄 Display HTML"
+            android:backgroundTint="@color/cyber_neon_green"
+            android:layout_width="0dp"
+            android:layout_height="48dp"
+            android:layout_columnWeight="1" />
+
+    </GridLayout>
+
+    <Button
+        android:id="@+id/btnBack"
+        style="@style/CyberpunkButton"
+        android:text="🔙 Back"
+        android:backgroundTint="#2a2a3e"
+        android:layout_width="match_parent"
+        android:layout_height="48dp" />
+
+</LinearLayout>

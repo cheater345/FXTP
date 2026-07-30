@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/cyber_bg"
+    android:gravity="center">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:padding="32dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="FXTP"
+            android:textSize="48sp"
+            android:textStyle="bold"
+            android:textColor="@color/cyber_neon_cyan"
+            android:fontFamily="monospace"
+            android:layout_marginBottom="8dp"/>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Cyberpunk Agent"
+            android:textSize="18sp"
+            android:textColor="@color/cyber_neon_magenta"
+            android:fontFamily="monospace"
+            android:layout_marginBottom="32dp"/>
+
+        <Button
+            android:id="@+id/btnControlPanel"
+            style="@style/CyberpunkButton"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:text="🎮 Control Panel"
+            android:layout_marginBottom="12dp"/>
+
+        <Button
+            android:id="@+id/btnDevice"
+            style="@style/CyberpunkButton"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:text="📱 Device Mode"
+            android:layout_marginBottom="12dp"/>
+
+        <Button
+            android:id="@+id/btnSettings"
+            style="@style/CyberpunkButton"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:text="⚙️ Settings"
+            android:layout_marginBottom="12dp"/>
+
+        <Button
+            android:id="@+id/btnLock"
+            style="@style/CyberpunkButton"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:text="🔒 Lock Device"
+            android:backgroundTint="@color/cyber_neon_magenta"/>
+
+        <Button
+            android:id="@+id/btnDisplayHtml"
+            style="@style/CyberpunkButton"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:text="📄 Display HTML"
+            android:backgroundTint="@color/cyber_neon_green"/>
+
+        <Button
+            android:id="@+id/btnExit"
+            style="@style/CyberpunkButton"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:text="🚪 Exit"
+            android:backgroundTint="#2a2a3e"/>
+
+    </LinearLayout>
+
+</RelativeLayout>

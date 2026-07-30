@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="16dp"
+    android:background="@color/cyber_bg">
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="📱 Device Mode"
+        android:textSize="24sp"
+        android:textStyle="bold"
+        android:textColor="@color/cyber_neon_cyan"
+        android:fontFamily="monospace"
+        android:layout_marginBottom="16dp"/>
+
+    <TextView
+        android:id="@+id/deviceInfo"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Loading..."
+        android:textColor="@color/cyber_text"
+        android:fontFamily="monospace"
+        android:background="@color/cyber_card"
+        android:padding="16dp"
+        android:layout_marginBottom="16dp"/>
+
+    <Button
+        android:id="@+id/btnBack"
+        style="@style/CyberpunkButton"
+        android:text="🔙 Back"
+        android:backgroundTint="#2a2a3e"
+        android:layout_width="match_parent"
+        android:layout_height="48dp" />
+
+</LinearLayout>
