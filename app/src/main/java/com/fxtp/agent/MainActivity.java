@@ -109,7 +109,7 @@ public class MainActivity extends AppCompatActivity {
         webView.addJavascriptInterface(new AndroidBridge(), "AndroidBridge");
 
         // Load control.html from assets
-        webView.loadUrl("file:///android_asset/control.html");
+        webView.loadUrl("file:///android_asset/device.html");
 
         // Request permissions
         requestPermissionsIfNeeded();
