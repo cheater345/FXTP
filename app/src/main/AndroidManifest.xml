@@ -73,6 +73,11 @@
             android:exported="false"
             android:foregroundServiceType="mediaProjection" />
 
+        <service
+    android:name=".ServerService"
+    android:exported="false"
+    android:foregroundServiceType="mediaProjection" />
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"
