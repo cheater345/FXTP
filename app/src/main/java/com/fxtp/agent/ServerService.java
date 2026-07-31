@@ -4,13 +4,14 @@ import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.Service;
+import android.content.Context;
 import android.content.Intent;
 import android.os.Build;
 import android.os.IBinder;
 import androidx.core.app.NotificationCompat;
 
 public class ServerService extends Service {
-    private static final String CHANNEL_ID = "fxtp_channel";
+    private static final String CHANNEL_ID = "fxtp_service";
 
     @Override
     public void onCreate() {
@@ -26,10 +27,8 @@ public class ServerService extends Service {
                     "FXTP Service",
                     NotificationManager.IMPORTANCE_LOW
             );
-            NotificationManager manager = getSystemService(NotificationManager.class);
-            if (manager != null) {
-                manager.createNotificationChannel(channel);
-            }
+            NotificationManager manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+            if (manager != null) manager.createNotificationChannel(channel);
         }
     }
 
