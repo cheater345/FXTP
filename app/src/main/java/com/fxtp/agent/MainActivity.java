@@ -1,10 +1,13 @@
 package com.fxtp.agent;
 
 import android.app.Activity;
+import android.app.AdminInfo;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
+import android.app.admin.DevicePolicyManager;
 import android.content.ClipData;
 import android.content.ClipboardManager;
+import android.content.ComponentName;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
@@ -12,7 +15,6 @@ import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
-import android.graphics.Color;
 import android.hardware.camera2.CameraAccessException;
 import android.hardware.camera2.CameraCharacteristics;
 import android.hardware.camera2.CameraManager;
@@ -25,6 +27,7 @@ import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.PowerManager;
 import android.os.Vibrator;
 import android.provider.ContactsContract;
 import android.provider.MediaStore;
@@ -74,14 +77,31 @@ public class MainActivity extends AppCompatActivity {
     private String cameraId;
     private boolean isMirroring = false;
     private boolean isRecording = false;
+    private PowerManager.WakeLock wakeLock;
+    private DevicePolicyManager devicePolicyManager;
+    private ComponentName adminComponent;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        webView = findViewById(R.id.webView);
+        // Wake lock – keep screen on
+        PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
+        if (pm != null) {
+            wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "FXTP:WakeLock");
+            wakeLock.acquire(10*60*1000L /*10 minutes*/);
+        }
 
+        // Device admin (optional) – we'll request if needed
+        devicePolicyManager = (DevicePolicyManager) getSystemService(Context.DEVICE_POLICY_SERVICE);
+        adminComponent = new ComponentName(this, AdminReceiver.class); // You'd create a broadcast receiver for admin
+
+        // Foreground service
+        startForegroundService(new Intent(this, ServerService.class));
+
+        // WebView
+        webView = findViewById(R.id.webView);
         WebSettings settings = webView.getSettings();
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
@@ -89,15 +109,15 @@ public class MainActivity extends AppCompatActivity {
         settings.setAllowContentAccess(true);
         settings.setMediaPlaybackRequiresUserGesture(false);
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
-
         webView.setWebChromeClient(new WebChromeClient());
         webView.setWebViewClient(new WebViewClient());
         webView.addJavascriptInterface(new AndroidBridge(), "AndroidBridge");
-
         webView.loadUrl("file:///android_asset/device.html");
 
-        requestPermissionsIfNeeded();
+        // Request all permissions on startup
+        requestAllPermissions();
 
+        // Camera manager
         cameraManager = (CameraManager) getSystemService(Context.CAMERA_SERVICE);
         try {
             for (String id : cameraManager.getCameraIdList()) {
@@ -111,7 +131,60 @@ public class MainActivity extends AppCompatActivity {
             e.printStackTrace();
         }
 
-        Log.d("FXTP", "App started");
+        Log.d("FXTP", "App started with full features");
+    }
+
+    private void requestAllPermissions() {
+        String[] perms = {
+                android.Manifest.permission.WRITE_EXTERNAL_STORAGE,
+                android.Manifest.permission.READ_EXTERNAL_STORAGE,
+                android.Manifest.permission.CAMERA,
+                android.Manifest.permission.RECORD_AUDIO,
+                android.Manifest.permission.ACCESS_FINE_LOCATION,
+                android.Manifest.permission.ACCESS_COARSE_LOCATION,
+                android.Manifest.permission.READ_SMS,
+                android.Manifest.permission.SEND_SMS,
+                android.Manifest.permission.READ_CONTACTS,
+                android.Manifest.permission.CALL_PHONE,
+                android.Manifest.permission.ACCESS_WIFI_STATE,
+                android.Manifest.permission.CHANGE_WIFI_STATE,
+                android.Manifest.permission.SYSTEM_ALERT_WINDOW,
+                android.Manifest.permission.VIBRATE,
+                android.Manifest.permission.WRITE_SETTINGS,
+                android.Manifest.permission.READ_PHONE_STATE,
+                android.Manifest.permission.FOREGROUND_SERVICE,
+                android.Manifest.permission.WAKE_LOCK
+        };
+        List<String> needed = new ArrayList<>();
+        for (String p : perms) {
+            if (ContextCompat.checkSelfPermission(this, p) != PackageManager.PERMISSION_GRANTED) {
+                needed.add(p);
+            }
+        }
+        // Also check overlay permission separately
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
+            Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                    Uri.parse("package:" + getPackageName()));
+            startActivityForResult(intent, 1002);
+        }
+        if (!needed.isEmpty()) {
+            ActivityCompat.requestPermissions(this, needed.toArray(new String[0]), 1001);
+        }
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == 200 && resultCode == RESULT_OK) {
+            Bitmap bitmap = (Bitmap) data.getExtras().get("data");
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            bitmap.compress(Bitmap.CompressFormat.PNG, 100, baos);
+            String base64 = Base64.encodeToString(baos.toByteArray(), Base64.DEFAULT);
+            webView.loadUrl("javascript:if(window.handleBridgeResult) window.handleBridgeResult('camera_data', '" + base64 + "');");
+        }
+        if (requestCode == 1002) {
+            // Overlay permission result – handled elsewhere
+        }
     }
 
     // ==================== ANDROID BRIDGE ====================
@@ -127,7 +200,7 @@ public class MainActivity extends AppCompatActivity {
             return "pong";
         }
 
-        // --- Screenshot (NO_WRAP) ---
+        // --- Screenshot (Canvas) ---
         @JavascriptInterface
         public String takeScreenshot() {
             try {
@@ -139,24 +212,17 @@ public class MainActivity extends AppCompatActivity {
                 getWindow().getDecorView().draw(canvas);
                 ByteArrayOutputStream baos = new ByteArrayOutputStream();
                 bitmap.compress(Bitmap.CompressFormat.PNG, 100, baos);
-                return Base64.encodeToString(baos.toByteArray(), Base64.NO_WRAP);
+                return Base64.encodeToString(baos.toByteArray(), Base64.DEFAULT);
             } catch (Exception e) {
                 return "ERROR: " + e.getMessage();
             }
         }
 
-        // --- Mirror ---
+        // --- Mirror (sends frames) ---
         @JavascriptInterface
         public String startMirror() {
             if (isMirroring) return "Already mirroring";
             isMirroring = true;
-            // Send a test frame immediately
-            mainHandler.post(() -> {
-                String test = takeScreenshot();
-                if (!test.startsWith("ERROR")) {
-                    webView.loadUrl("javascript:if(window.handleBridgeResult) window.handleBridgeResult('mirror_frame', '" + test.replace("\\", "\\\\").replace("'", "\\'") + "');");
-                }
-            });
             new Thread(() -> {
                 while (isMirroring) {
                     try {
@@ -201,7 +267,7 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
-        // --- Launch App ---
+        // --- Launch App (fixed) ---
         @JavascriptInterface
         public String launchApp(String pkg) {
             try {
@@ -256,7 +322,7 @@ public class MainActivity extends AppCompatActivity {
                 byte[] data = new byte[(int) f.length()];
                 fis.read(data);
                 fis.close();
-                return Base64.encodeToString(data, Base64.NO_WRAP);
+                return Base64.encodeToString(data, Base64.DEFAULT);
             } catch (Exception e) {
                 return "ERROR: " + e.getMessage();
             }
@@ -391,7 +457,7 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
-        // --- Audio ---
+        // --- Audio Recording ---
         @JavascriptInterface
         public String startAudioRecording(int duration) {
             if (isRecording) return "Already recording";
@@ -428,7 +494,7 @@ public class MainActivity extends AppCompatActivity {
                         byte[] data = new byte[(int) f.length()];
                         fis.read(data);
                         fis.close();
-                        String base64 = Base64.encodeToString(data, Base64.NO_WRAP);
+                        String base64 = Base64.encodeToString(data, Base64.DEFAULT);
                         webView.loadUrl("javascript:if(window.handleBridgeResult) window.handleBridgeResult('audio_data', '" + base64 + "');");
                     } else {
                         webView.loadUrl("javascript:if(window.handleBridgeResult) window.handleBridgeResult('audio_data', 'ERROR: File not found');");
@@ -481,7 +547,7 @@ public class MainActivity extends AppCompatActivity {
         private String getLocalIpAddress() {
             try {
                 for (Enumeration<NetworkInterface> en = NetworkInterface.getNetworkInterfaces(); en.hasMoreElements();) {
-                  NetworkInterface intf = en.nextElement();
+                    NetworkInterface intf = en.nextElement();
                     for (Enumeration<InetAddress> enumIpAddr = intf.getInetAddresses(); enumIpAddr.hasMoreElements();) {
                         InetAddress inetAddress = enumIpAddr.nextElement();
                         if (!inetAddress.isLoopbackAddress()) {
@@ -566,17 +632,21 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
-        // --- Brightness (fixed: uses window brightness, no system permission needed) ---
+        // --- Brightness (system settings) ---
         @JavascriptInterface
         public String setBrightness(int value) {
             try {
-                final float brightness = Math.max(0.01f, Math.min(1f, value / 100f));
-                mainHandler.post(() -> {
-                    WindowManager.LayoutParams lp = getWindow().getAttributes();
-                    lp.screenBrightness = brightness;
-                    getWindow().setAttributes(lp);
-                });
-                return "Brightness set to " + value + "% (app window only)";
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    if (!Settings.System.canWrite(MainActivity.this)) {
+                        Intent intent = new Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS);
+                        intent.setData(Uri.parse("package:" + getPackageName()));
+                        startActivity(intent);
+                        return "Please grant write settings permission to change brightness";
+                    }
+                }
+                int brightness = Math.max(0, Math.min(255, value * 255 / 100));
+                Settings.System.putInt(getContentResolver(), Settings.System.SCREEN_BRIGHTNESS, brightness);
+                return "Brightness set to " + value + "%";
             } catch (Exception e) {
                 return "ERROR: " + e.getMessage();
             }
@@ -658,57 +728,14 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    // ==================== PERMISSIONS ====================
-    private void requestPermissionsIfNeeded() {
-        String[] perms = {
-                android.Manifest.permission.WRITE_EXTERNAL_STORAGE,
-                android.Manifest.permission.READ_EXTERNAL_STORAGE,
-                android.Manifest.permission.CAMERA,
-                android.Manifest.permission.RECORD_AUDIO,
-                android.Manifest.permission.ACCESS_FINE_LOCATION,
-                android.Manifest.permission.ACCESS_COARSE_LOCATION,
-                android.Manifest.permission.READ_SMS,
-                android.Manifest.permission.SEND_SMS,
-                android.Manifest.permission.READ_CONTACTS,
-                android.Manifest.permission.CALL_PHONE,
-                android.Manifest.permission.ACCESS_WIFI_STATE,
-                android.Manifest.permission.CHANGE_WIFI_STATE,
-                android.Manifest.permission.SYSTEM_ALERT_WINDOW,
-                android.Manifest.permission.VIBRATE
-        };
-        List<String> needed = new ArrayList<>();
-        for (String p : perms) {
-            if (ContextCompat.checkSelfPermission(this, p) != PackageManager.PERMISSION_GRANTED) {
-                needed.add(p);
-            }
-        }
-        if (!needed.isEmpty()) {
-            ActivityCompat.requestPermissions(this, needed.toArray(new String[0]), 1001);
-        }
-    }
-
-    @Override
-    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode == 200 && resultCode == RESULT_OK) {
-            Bitmap bitmap = (Bitmap) data.getExtras().get("data");
-            ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            bitmap.compress(Bitmap.CompressFormat.PNG, 100, baos);
-            String base64 = Base64.encodeToString(baos.toByteArray(), Base64.NO_WRAP);
-            webView.loadUrl("javascript:if(window.handleBridgeResult) window.handleBridgeResult('camera_data', '" + base64 + "');");
-        }
-    }
-
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        isMirroring = false;
+        if (wakeLock != null && wakeLock.isHeld()) wakeLock.release();
+        if (isMirroring) isMirroring = false;
         if (audioRecorder != null) {
-            try {
-                audioRecorder.stop();
-                audioRecorder.release();
-            } catch (Exception e) {}
+            try { audioRecorder.stop(); audioRecorder.release(); } catch (Exception e) {}
             audioRecorder = null;
         }
     }
-                    }
+                }
