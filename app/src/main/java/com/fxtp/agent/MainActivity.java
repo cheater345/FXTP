@@ -1,10 +1,8 @@
 package com.fxtp.agent;
 
 import android.app.Activity;
-import android.app.AdminInfo;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
-import android.app.admin.DevicePolicyManager;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.ComponentName;
@@ -78,8 +76,6 @@ public class MainActivity extends AppCompatActivity {
     private boolean isMirroring = false;
     private boolean isRecording = false;
     private PowerManager.WakeLock wakeLock;
-    private DevicePolicyManager devicePolicyManager;
-    private ComponentName adminComponent;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -92,10 +88,6 @@ public class MainActivity extends AppCompatActivity {
             wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "FXTP:WakeLock");
             wakeLock.acquire(10*60*1000L /*10 minutes*/);
         }
-
-        // Device admin (optional) – we'll request if needed
-        devicePolicyManager = (DevicePolicyManager) getSystemService(Context.DEVICE_POLICY_SERVICE);
-        adminComponent = new ComponentName(this, AdminReceiver.class); // You'd create a broadcast receiver for admin
 
         // Foreground service
         startForegroundService(new Intent(this, ServerService.class));
@@ -738,4 +730,4 @@ public class MainActivity extends AppCompatActivity {
             audioRecorder = null;
         }
     }
-                }
+                    }
