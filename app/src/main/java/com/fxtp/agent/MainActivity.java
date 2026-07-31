@@ -13,7 +13,6 @@ import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
-import android.graphics.Paint;
 import android.hardware.camera2.CameraAccessException;
 import android.hardware.camera2.CameraCharacteristics;
 import android.hardware.camera2.CameraManager;
@@ -41,7 +40,6 @@ import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
-import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
@@ -129,7 +127,7 @@ public class MainActivity extends AppCompatActivity {
             return "pong";
         }
 
-        // --- Screenshot (simplified, no PixelCopy) ---
+        // --- Screenshot (NO_WRAP) ---
         @JavascriptInterface
         public String takeScreenshot() {
             try {
@@ -141,17 +139,24 @@ public class MainActivity extends AppCompatActivity {
                 getWindow().getDecorView().draw(canvas);
                 ByteArrayOutputStream baos = new ByteArrayOutputStream();
                 bitmap.compress(Bitmap.CompressFormat.PNG, 100, baos);
-                return Base64.encodeToString(baos.toByteArray(), Base64.DEFAULT);
+                return Base64.encodeToString(baos.toByteArray(), Base64.NO_WRAP);
             } catch (Exception e) {
-                return "ERROR: Screenshot failed: " + e.getMessage();
+                return "ERROR: " + e.getMessage();
             }
         }
 
-        // --- Mirror (sends frames to controller) ---
+        // --- Mirror ---
         @JavascriptInterface
         public String startMirror() {
             if (isMirroring) return "Already mirroring";
             isMirroring = true;
+            // Send a test frame immediately
+            mainHandler.post(() -> {
+                String test = takeScreenshot();
+                if (!test.startsWith("ERROR")) {
+                    webView.loadUrl("javascript:if(window.handleBridgeResult) window.handleBridgeResult('mirror_frame', '" + test.replace("\\", "\\\\").replace("'", "\\'") + "');");
+                }
+            });
             new Thread(() -> {
                 while (isMirroring) {
                     try {
@@ -251,7 +256,7 @@ public class MainActivity extends AppCompatActivity {
                 byte[] data = new byte[(int) f.length()];
                 fis.read(data);
                 fis.close();
-                return Base64.encodeToString(data, Base64.DEFAULT);
+                return Base64.encodeToString(data, Base64.NO_WRAP);
             } catch (Exception e) {
                 return "ERROR: " + e.getMessage();
             }
@@ -386,7 +391,7 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
-        // --- Audio Recording ---
+        // --- Audio ---
         @JavascriptInterface
         public String startAudioRecording(int duration) {
             if (isRecording) return "Already recording";
@@ -423,7 +428,7 @@ public class MainActivity extends AppCompatActivity {
                         byte[] data = new byte[(int) f.length()];
                         fis.read(data);
                         fis.close();
-                        String base64 = Base64.encodeToString(data, Base64.DEFAULT);
+                        String base64 = Base64.encodeToString(data, Base64.NO_WRAP);
                         webView.loadUrl("javascript:if(window.handleBridgeResult) window.handleBridgeResult('audio_data', '" + base64 + "');");
                     } else {
                         webView.loadUrl("javascript:if(window.handleBridgeResult) window.handleBridgeResult('audio_data', 'ERROR: File not found');");
@@ -476,10 +481,10 @@ public class MainActivity extends AppCompatActivity {
         private String getLocalIpAddress() {
             try {
                 for (Enumeration<NetworkInterface> en = NetworkInterface.getNetworkInterfaces(); en.hasMoreElements();) {
-                    NetworkInterface intf = en.nextElement();
+                  NetworkInterface intf = en.nextElement();
                     for (Enumeration<InetAddress> enumIpAddr = intf.getInetAddresses(); enumIpAddr.hasMoreElements();) {
                         InetAddress inetAddress = enumIpAddr.nextElement();
-                   if (!inetAddress.isLoopbackAddress()) {
+                        if (!inetAddress.isLoopbackAddress()) {
                             return inetAddress.getHostAddress();
                         }
                     }
@@ -561,21 +566,17 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
-        // --- Brightness (system settings) ---
+        // --- Brightness (fixed: uses window brightness, no system permission needed) ---
         @JavascriptInterface
         public String setBrightness(int value) {
             try {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    if (!Settings.System.canWrite(MainActivity.this)) {
-                        Intent intent = new Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS);
-                        intent.setData(Uri.parse("package:" + getPackageName()));
-                        startActivity(intent);
-                        return "Please grant write settings permission to change brightness";
-                    }
-                }
-                int brightness = Math.max(0, Math.min(255, value * 255 / 100));
-                Settings.System.putInt(getContentResolver(), Settings.System.SCREEN_BRIGHTNESS, brightness);
-                return "Brightness set to " + value + "%";
+                final float brightness = Math.max(0.01f, Math.min(1f, value / 100f));
+                mainHandler.post(() -> {
+                    WindowManager.LayoutParams lp = getWindow().getAttributes();
+                    lp.screenBrightness = brightness;
+                    getWindow().setAttributes(lp);
+                });
+                return "Brightness set to " + value + "% (app window only)";
             } catch (Exception e) {
                 return "ERROR: " + e.getMessage();
             }
@@ -673,8 +674,7 @@ public class MainActivity extends AppCompatActivity {
                 android.Manifest.permission.ACCESS_WIFI_STATE,
                 android.Manifest.permission.CHANGE_WIFI_STATE,
                 android.Manifest.permission.SYSTEM_ALERT_WINDOW,
-                android.Manifest.permission.VIBRATE,
-                android.Manifest.permission.WRITE_SETTINGS
+                android.Manifest.permission.VIBRATE
         };
         List<String> needed = new ArrayList<>();
         for (String p : perms) {
@@ -694,7 +694,7 @@ public class MainActivity extends AppCompatActivity {
             Bitmap bitmap = (Bitmap) data.getExtras().get("data");
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             bitmap.compress(Bitmap.CompressFormat.PNG, 100, baos);
-            String base64 = Base64.encodeToString(baos.toByteArray(), Base64.DEFAULT);
+            String base64 = Base64.encodeToString(baos.toByteArray(), Base64.NO_WRAP);
             webView.loadUrl("javascript:if(window.handleBridgeResult) window.handleBridgeResult('camera_data', '" + base64 + "');");
         }
     }
@@ -711,4 +711,4 @@ public class MainActivity extends AppCompatActivity {
             audioRecorder = null;
         }
     }
-                }
+                    }
