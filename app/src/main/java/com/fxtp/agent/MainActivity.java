@@ -35,7 +35,6 @@ import android.util.Base64;
 import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.View;
-import android.view.WindowManager;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
@@ -46,6 +45,7 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.app.NotificationCompat;
@@ -158,7 +158,6 @@ public class MainActivity extends AppCompatActivity {
                 Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
                         Uri.parse("package:" + getPackageName()));
                 startActivityForResult(intent, 1002);
-                // We'll handle the result in onActivityResult
                 return;
             } else {
                 permIndex++;
@@ -188,8 +187,8 @@ public class MainActivity extends AppCompatActivity {
     }
 
     @Override
-    public void onRequestPermissionsResult(int requestCode, int[] grantResults, int[] grantResultsOthers) {
-        super.onRequestPermissionsResult(requestCode, grantResults, grantResultsOthers);
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (requestCode >= 1001 && requestCode < 1001 + allPerms.length) {
             int idx = requestCode - 1001;
             if (idx < allPerms.length) {
@@ -200,7 +199,6 @@ public class MainActivity extends AppCompatActivity {
                     Toast.makeText(this, "Permission denied: " + allPerms[idx], Toast.LENGTH_SHORT).show();
                 }
                 permIndex++;
-                // Continue with next permission
                 mainHandler.postDelayed(this::requestNextPermission, 300);
             }
         }
@@ -790,4 +788,4 @@ public class MainActivity extends AppCompatActivity {
             audioRecorder = null;
         }
     }
-                            }
+                    }
