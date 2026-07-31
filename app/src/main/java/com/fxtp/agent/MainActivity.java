@@ -62,12 +62,9 @@ import java.net.HttpURLConnection;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
 import java.net.URL;
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.Enumeration;
 import java.util.List;
-import java.util.Locale;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -78,8 +75,6 @@ public class MainActivity extends AppCompatActivity {
     private CameraManager cameraManager;
     private String cameraId;
     private boolean isMirroring = false;
-    private Handler mirrorHandler;
-    private Runnable mirrorRunnable;
     private boolean isRecording = false;
 
     @Override
@@ -134,7 +129,7 @@ public class MainActivity extends AppCompatActivity {
             return "pong";
         }
 
-        // --- Screenshot (fixed with fallback) ---
+        // --- Screenshot (simplified, no PixelCopy) ---
         @JavascriptInterface
         public String takeScreenshot() {
             try {
@@ -148,30 +143,11 @@ public class MainActivity extends AppCompatActivity {
                 bitmap.compress(Bitmap.CompressFormat.PNG, 100, baos);
                 return Base64.encodeToString(baos.toByteArray(), Base64.DEFAULT);
             } catch (Exception e) {
-                // Fallback: use PixelCopy on Android 8+
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    try {
-                        final Bitmap[] bitmap = {null};
-                        final java.util.concurrent.CountDownLatch latch = new java.util.concurrent.CountDownLatch(1);
-                        android.view.PixelCopy.request(getWindow().getDecorView(), (bm) -> {
-                            bitmap[0] = bm;
-                            latch.countDown();
-                        });
-                        latch.await(500, java.util.concurrent.TimeUnit.MILLISECONDS);
-                        if (bitmap[0] != null) {
-                            ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                            bitmap[0].compress(Bitmap.CompressFormat.PNG, 100, baos);
-                            return Base64.encodeToString(baos.toByteArray(), Base64.DEFAULT);
-                        }
-                    } catch (Exception ex) {
-                        return "ERROR: Screenshot failed: " + ex.getMessage();
-                    }
-                }
-                return "ERROR: " + e.getMessage();
+                return "ERROR: Screenshot failed: " + e.getMessage();
             }
         }
 
-        // --- Mirror (fixed – background thread, displays in controller) ---
+        // --- Mirror (sends frames to controller) ---
         @JavascriptInterface
         public String startMirror() {
             if (isMirroring) return "Already mirroring";
@@ -220,7 +196,7 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
-        // --- Launch App (fixed – resolves with PackageManager) ---
+        // --- Launch App ---
         @JavascriptInterface
         public String launchApp(String pkg) {
             try {
@@ -229,7 +205,6 @@ public class MainActivity extends AppCompatActivity {
                     startActivity(i);
                     return "Launched: " + pkg;
                 } else {
-                    // Try to resolve using intent
                     Intent resolveIntent = new Intent(Intent.ACTION_MAIN);
                     resolveIntent.addCategory(Intent.CATEGORY_LAUNCHER);
                     resolveIntent.setPackage(pkg);
@@ -411,7 +386,7 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
-        // --- Audio Recording (fixed) ---
+        // --- Audio Recording ---
         @JavascriptInterface
         public String startAudioRecording(int duration) {
             if (isRecording) return "Already recording";
@@ -504,7 +479,7 @@ public class MainActivity extends AppCompatActivity {
                     NetworkInterface intf = en.nextElement();
                     for (Enumeration<InetAddress> enumIpAddr = intf.getInetAddresses(); enumIpAddr.hasMoreElements();) {
                         InetAddress inetAddress = enumIpAddr.nextElement();
-                        if (!inetAddress.isLoopbackAddress()) {
+                   if (!inetAddress.isLoopbackAddress()) {
                             return inetAddress.getHostAddress();
                         }
                     }
@@ -568,7 +543,7 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
-        // --- Vibrate (fixed) ---
+        // --- Vibrate ---
         @JavascriptInterface
         public String vibrate(int duration) {
             if (ContextCompat.checkSelfPermission(MainActivity.this, android.Manifest.permission.VIBRATE) != PackageManager.PERMISSION_GRANTED) {
@@ -586,7 +561,7 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
-        // --- Brightness (fixed – uses system settings) ---
+        // --- Brightness (system settings) ---
         @JavascriptInterface
         public String setBrightness(int value) {
             try {
@@ -699,7 +674,7 @@ public class MainActivity extends AppCompatActivity {
                 android.Manifest.permission.CHANGE_WIFI_STATE,
                 android.Manifest.permission.SYSTEM_ALERT_WINDOW,
                 android.Manifest.permission.VIBRATE,
-                android.Manifest.permission.WRITE_SETTINGS  // for brightness
+                android.Manifest.permission.WRITE_SETTINGS
         };
         List<String> needed = new ArrayList<>();
         for (String p : perms) {
@@ -736,4 +711,4 @@ public class MainActivity extends AppCompatActivity {
             audioRecorder = null;
         }
     }
-                            }
+                }
