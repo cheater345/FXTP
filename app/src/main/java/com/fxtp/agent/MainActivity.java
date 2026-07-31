@@ -84,7 +84,6 @@ public class MainActivity extends AppCompatActivity {
     private boolean isRecording = false;
     private PowerManager.WakeLock wakeLock;
 
-    // Permission list
     private String[] allPerms = {
             android.Manifest.permission.WRITE_EXTERNAL_STORAGE,
             android.Manifest.permission.READ_EXTERNAL_STORAGE,
@@ -117,14 +116,12 @@ public class MainActivity extends AppCompatActivity {
         btnStart = findViewById(R.id.btnStart);
         permStatus = findViewById(R.id.permStatus);
 
-        // Wake lock
         PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
         if (pm != null) {
             wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "FXTP:WakeLock");
             wakeLock.acquire(10*60*1000L);
         }
 
-        // Camera manager
         cameraManager = (CameraManager) getSystemService(Context.CAMERA_SERVICE);
         try {
             for (String id : cameraManager.getCameraIdList()) {
@@ -146,13 +143,12 @@ public class MainActivity extends AppCompatActivity {
 
     private void requestNextPermission() {
         if (permIndex >= allPerms.length) {
-            // All permissions granted
             permStatus.setText("✅ All permissions granted");
-            startApp();
+            // Delay to let UI settle, then start app
+            mainHandler.postDelayed(this::startApp, 500);
             return;
         }
         String perm = allPerms[permIndex];
-        // Check overlay permission separately
         if (perm.equals(android.Manifest.permission.SYSTEM_ALERT_WINDOW)) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
                 Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
@@ -195,7 +191,7 @@ public class MainActivity extends AppCompatActivity {
                 if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                     permStatus.setText("✅ " + allPerms[idx].substring(allPerms[idx].lastIndexOf('.')+1) + " granted");
                 } else {
-                    permStatus.setText("⚠️ " + allPerms[idx].substring(allPerms[idx].lastIndexOf('.')+1) + " denied – some features may not work");
+                    permStatus.setText("⚠️ " + allPerms[idx].substring(allPerms[idx].lastIndexOf('.')+1) + " denied");
                     Toast.makeText(this, "Permission denied: " + allPerms[idx], Toast.LENGTH_SHORT).show();
                 }
                 permIndex++;
@@ -208,25 +204,22 @@ public class MainActivity extends AppCompatActivity {
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode == 1002) {
-            // Overlay permission result
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && Settings.canDrawOverlays(this)) {
-                permStatus.setText("✅ Overlay permission granted");
+                permStatus.setText("✅ Overlay granted");
             } else {
-                permStatus.setText("⚠️ Overlay permission denied – mirror may not work");
+                permStatus.setText("⚠️ Overlay denied");
             }
             permIndex++;
             requestNextPermission();
         } else if (requestCode == 1003) {
-            // Write settings result
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && Settings.System.canWrite(this)) {
                 permStatus.setText("✅ Write settings granted");
             } else {
-                permStatus.setText("⚠️ Write settings denied – brightness may not work");
+                permStatus.setText("⚠️ Write settings denied");
             }
             permIndex++;
             requestNextPermission();
         } else if (requestCode == 200 && resultCode == RESULT_OK) {
-            // Camera result
             Bitmap bitmap = (Bitmap) data.getExtras().get("data");
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             bitmap.compress(Bitmap.CompressFormat.PNG, 100, baos);
@@ -239,20 +232,24 @@ public class MainActivity extends AppCompatActivity {
         splashLayout.setVisibility(View.GONE);
         webView.setVisibility(View.VISIBLE);
 
-        // Setup WebView
-        WebSettings settings = webView.getSettings();
-        settings.setJavaScriptEnabled(true);
-        settings.setDomStorageEnabled(true);
-        settings.setAllowFileAccess(true);
-        settings.setAllowContentAccess(true);
-        settings.setMediaPlaybackRequiresUserGesture(false);
-        settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
-        webView.setWebChromeClient(new WebChromeClient());
-        webView.setWebViewClient(new WebViewClient());
-        webView.addJavascriptInterface(new AndroidBridge(), "AndroidBridge");
-        webView.loadUrl("file:///android_asset/device.html");
+        // Setup WebView with try-catch
+        try {
+            WebSettings settings = webView.getSettings();
+            settings.setJavaScriptEnabled(true);
+            settings.setDomStorageEnabled(true);
+            settings.setAllowFileAccess(true);
+            settings.setAllowContentAccess(true);
+            settings.setMediaPlaybackRequiresUserGesture(false);
+            settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
+            webView.setWebChromeClient(new WebChromeClient());
+            webView.setWebViewClient(new WebViewClient());
+            webView.addJavascriptInterface(new AndroidBridge(), "AndroidBridge");
+            webView.loadUrl("file:///android_asset/device.html");
+        } catch (Exception e) {
+            Log.e("FXTP", "WebView error", e);
+            Toast.makeText(this, "WebView error: " + e.getMessage(), Toast.LENGTH_LONG).show();
+        }
 
-        // Foreground service – safely start
         try {
             startForegroundService(new Intent(this, ServerService.class));
         } catch (Exception e) {
@@ -788,4 +785,4 @@ public class MainActivity extends AppCompatActivity {
             audioRecorder = null;
         }
     }
-                    }
+                }
