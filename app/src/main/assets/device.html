@@ -6,7 +6,7 @@
     <title>FXTP</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', -apple-system, sans-serif; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; }
         body { background: #0a0a12; color: #e0e0ff; padding: 16px; min-height: 100vh; }
         .header { background: linear-gradient(135deg, #1a1a2e, #16213e); border-radius: 20px; padding: 20px; margin-bottom: 16px; border: 1px solid #2a2a42; }
         .header h1 { font-size: 24px; font-weight: 700; background: linear-gradient(135deg, #a855f7, #3b82f6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-align: center; }
@@ -42,9 +42,9 @@
         .log .received { color: #ffb74d; }
         .log .error { color: #e94560; }
         .log .info { color: #8a8a9e; }
-        .mirror-box { background: #0b0b12; border-radius: 12px; border: 1px solid #2a2a3a; min-height: 100px; display: flex; align-items: center; justify-content: center; overflow: hidden; }
-        .mirror-box img { max-width: 100%; max-height: 300px; object-fit: contain; }
-        .mirror-box .placeholder { color: #6a6a82; font-size: 14px; padding: 20px; text-align: center; }
+        .mirror-container { width: 100%; min-height: 200px; background: #0b0b12; border-radius: 12px; border: 1px solid #2a2a3a; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+        .mirror-container img { max-width: 100%; max-height: 400px; object-fit: contain; }
+        .mirror-container .placeholder { color: #6a6a82; font-size: 14px; padding: 20px; text-align: center; }
         @media (max-width: 480px) { .grid-3 { grid-template-columns: 1fr 1fr; } }
     </style>
 </head>
@@ -82,10 +82,10 @@
 
         <!-- Mirror Display -->
         <div class="card">
-            <div class="card-title">🖥️ Mirror</div>
-            <div class="mirror-box" id="mirrorBox">
-                <img id="mirrorImage" style="display:none;" />
-                <span class="placeholder" id="mirrorPlaceholder">Mirror will appear here</span>
+            <div class="card-title">🖥️ Mirror (Full‑screen)</div>
+            <div class="mirror-container" id="mirrorBox">
+                <img id="mirrorImage" style="display:none; max-height:400px;" />
+                <span class="placeholder" id="mirrorPlaceholder">Mirror will appear here<br><small>Click the image to expand full‑screen</small></span>
             </div>
         </div>
 
@@ -323,7 +323,7 @@
         }
 
         // ========================================
-        // HANDLE RESPONSE (Controller) – includes mirror display
+        // HANDLE RESPONSE (Controller)
         // ========================================
         function handleResponse(data) {
             const type = data.type;
@@ -336,6 +336,15 @@
                 img.src = 'data:image/png;base64,' + val;
                 img.style.display = 'block';
                 placeholder.style.display = 'none';
+                // Allow full‑screen expansion
+                img.onclick = function() {
+                    if (document.fullscreenEnabled) {
+                        const container = document.getElementById('mirrorBox');
+                        container.requestFullscreen().catch(() => {});
+                    } else {
+                        window.open('data:image/png;base64,' + val, '_blank');
+                    }
+                };
                 return;
             }
 
@@ -350,7 +359,7 @@
                 return;
             }
 
-            if (type === 'file_data') {
+    if (type === 'file_data') {
                 log('📁 File data received', 'received');
                 const a = document.createElement('a');
                 a.href = 'data:application/octet-stream;base64,' + val;
@@ -368,7 +377,7 @@
                 return;
             }
 
-            // Other responses as before
+            // Other responses
             if (type === 'file_list') {
                 try { const arr = JSON.parse(val); log('📂 ' + arr.map(f => f.name + (f.isDir ? '/' : '')).join(', '), 'received'); } catch { log('📂 ' + val, 'received'); }
             } else if (type === 'shell_result') {
